@@ -14,6 +14,7 @@ import { sendTestPush } from "@/lib/push";
 import { api, ApiException } from "@/lib/api";
 import { Logo } from "@/components/layout/Logo";
 import { PageBackground } from "@/components/layout/PageBackground";
+import { InstallAppCard } from "@/components/install/InstallAppCard";
 
 export function Profile() {
   const { user, logout } = useAuth();
@@ -136,6 +137,9 @@ export function Profile() {
             </div>
           )}
         </motion.section>
+
+        {/* ============ INSTALL APP ============ */}
+        <InstallAppCard />
 
         {/* ============ GAME CARD ============ */}
         {game && (
