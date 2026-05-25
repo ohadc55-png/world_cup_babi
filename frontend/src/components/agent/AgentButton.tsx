@@ -1,8 +1,8 @@
 // כפתור הסוכן הצף — מופיע על כל מסך מוגן (ProtectedLayout).
 // לחיצה פותחת את AgentChatPanel.
 //
-// מיקום: top-right ויזואלית (ליד הפעמון ב-Home, או בקצה הימני בשאר הדפים).
-// גודל וסגנון: דומה לכפתור הפעמון — קטן וצנוע.
+// מיקום: TOP-CENTER — באמצע ה-sticky header, בין הלוגו (visual left) לאייברו
+// השם של הדף (visual right). מתחת ל-safe-area-top.
 
 import { useState } from "react";
 import { AnimatePresence } from "framer-motion";
@@ -16,11 +16,8 @@ export function AgentButton() {
       <button
         aria-label="פתח את השקנאי הרשמי"
         onClick={() => setIsOpen(true)}
-        className="fixed z-50 overflow-hidden rounded-full no-tap transition-transform hover:scale-105"
+        className="fixed left-1/2 z-50 -translate-x-1/2 overflow-hidden rounded-full no-tap transition-transform hover:scale-105"
         style={{
-          // visual RIGHT (ב-RTL זה הצד הימני). 56px מהקצה כדי שלא יחפוף לפעמון ב-Home.
-          right: 56,
-          // מתחת ל-safe-area-top, בגובה ה-sticky header
           top: "calc(max(8px, env(safe-area-inset-top)) + 6px)",
           width: 32,
           height: 32,
