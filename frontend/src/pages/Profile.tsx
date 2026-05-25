@@ -14,7 +14,6 @@ import { sendTestPush } from "@/lib/push";
 import { api, ApiException } from "@/lib/api";
 import { Logo } from "@/components/layout/Logo";
 import { PageBackground } from "@/components/layout/PageBackground";
-import type { NotificationPrefs } from "@/types";
 
 export function Profile() {
   const { user, logout } = useAuth();

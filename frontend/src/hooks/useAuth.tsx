@@ -73,6 +73,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       username: auth.username,
       is_admin: auth.is_admin,
       game_id: auth.game_id,
+      avatar_url: auth.avatar_url,
+      created_at: null,
     });
     setNetworkError(false);
   }

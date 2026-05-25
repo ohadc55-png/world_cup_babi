@@ -24,7 +24,7 @@ export function getNotificationPermission(): NotificationPermission | "unsupport
 }
 
 /** ממיר base64url ל-Uint8Array (פורמט שדורש PushManager.subscribe). */
-function urlBase64ToUint8Array(base64: string): Uint8Array {
+function urlBase64ToUint8Array(base64: string): BufferSource {
   const padding = "=".repeat((4 - (base64.length % 4)) % 4);
   const padded = (base64 + padding).replace(/-/g, "+").replace(/_/g, "/");
   const raw = atob(padded);

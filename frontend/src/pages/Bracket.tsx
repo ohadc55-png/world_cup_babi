@@ -9,16 +9,15 @@
 import { useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Trophy, Lock } from "lucide-react";
+import { Trophy } from "lucide-react";
 import { useAllMatches } from "@/hooks/useMatches";
-import { useMyMatchPredictions } from "@/hooks/usePredictions";
 import { useGroupStandings } from "@/hooks/useGroupStandings";
 import { getTeamInfo } from "@/lib/teams";
 import { formatScore } from "@/lib/matchScore";
 import { Logo } from "@/components/layout/Logo";
 import { PageBackground } from "@/components/layout/PageBackground";
 import { GroupStandingsCard } from "@/components/groups/GroupStandingsTable";
-import type { Match, MatchPrediction, Stage } from "@/types";
+import type { Match, Stage } from "@/types";
 
 const COLUMNS: { stage: Stage; title: string; count: number }[] = [
   { stage: "r32", title: "סבב 32", count: 16 },
@@ -33,7 +32,6 @@ const VALID_TT: TournamentTab[] = ["groups", "bracket"];
 
 export function Bracket() {
   const { data: allMatches, loading: matchesLoading } = useAllMatches();
-  const { data: predictions } = useMyMatchPredictions();
   const { data: standings, loading: standingsLoading, error: standingsError } = useGroupStandings();
 
   // ברירת מחדל: אם משחק נוקאאוט כלשהו התחיל → טאב פלייאוף; אחרת → טאב בתים
@@ -51,13 +49,6 @@ export function Bracket() {
   function setActiveTab(t: TournamentTab) {
     setSearchParams({ tab: t }, { replace: false });
   }
-
-  // ממפים predictions לפי match_id לחיפוש מהיר
-  const predsByMatch = useMemo(() => {
-    const m = new Map<number, MatchPrediction>();
-    (predictions ?? []).forEach((p) => m.set(p.match_id, p));
-    return m;
-  }, [predictions]);
 
   // קבץ משחקים לפי שלב (לטאב פלייאוף)
   const byStage = useMemo(() => {
@@ -181,10 +172,10 @@ export function Bracket() {
               {(finalResolved(final) || finalResolved(thirdPlace)) && (
                 <div className="px-5 pt-3 flex flex-col gap-3">
                   {final && (
-                    <FinalCard match={final} pred={predsByMatch.get(final.id)} isFinal />
+                    <FinalCard match={final} isFinal />
                   )}
                   {thirdPlace && (
-                    <FinalCard match={thirdPlace} pred={predsByMatch.get(thirdPlace.id)} isFinal={false} />
+                    <FinalCard match={thirdPlace} isFinal={false} />
                   )}
                 </div>
               )}
@@ -201,7 +192,6 @@ export function Bracket() {
                       title={col.title}
                       matches={byStage.get(col.stage) ?? []}
                       expectedCount={col.count}
-                      predsByMatch={predsByMatch}
                     />
                   ))}
                 </div>
@@ -211,10 +201,10 @@ export function Bracket() {
               {!finalResolved(final) && !finalResolved(thirdPlace) && (
                 <div className="px-5 pt-2 flex flex-col gap-3">
                   {final && (
-                    <FinalCard match={final} pred={predsByMatch.get(final.id)} isFinal />
+                    <FinalCard match={final} isFinal />
                   )}
                   {thirdPlace && (
-                    <FinalCard match={thirdPlace} pred={predsByMatch.get(thirdPlace.id)} isFinal={false} />
+                    <FinalCard match={thirdPlace} isFinal={false} />
                   )}
                 </div>
               )}
@@ -234,12 +224,10 @@ function Column({
   title,
   matches,
   expectedCount,
-  predsByMatch,
 }: {
   title: string;
   matches: Match[];
   expectedCount: number;
-  predsByMatch: Map<number, MatchPrediction>;
 }) {
   return (
     <div
@@ -257,7 +245,6 @@ function Column({
           <BracketMatch
             key={match.id}
             match={match}
-            pred={predsByMatch.get(match.id)}
           />
         ))}
         {/* placeholder אם חסרים משחקים */}
@@ -272,7 +259,7 @@ function Column({
 // ============================================================
 // BracketMatch — כרטיס משחק קטן
 // ============================================================
-function BracketMatch({ match, pred }: { match: Match; pred?: MatchPrediction }) {
+function BracketMatch({ match }: { match: Match }) {
   const navigate = useNavigate();
   const home = getTeamInfo(match.team_home);
   const away = getTeamInfo(match.team_away);
@@ -347,7 +334,7 @@ function PlaceholderMatch() {
 // ============================================================
 function FinalCard({
   match, isFinal,
-}: { match: Match; pred?: MatchPrediction; isFinal: boolean }) {
+}: { match: Match; isFinal: boolean }) {
   const home = getTeamInfo(match.team_home);
   const away = getTeamInfo(match.team_away);
   const isFinished = match.status === "finished";
