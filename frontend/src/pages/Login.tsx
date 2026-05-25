@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import type { AuthSuccessResponse } from "@/types";
 import { Logo } from "@/components/layout/Logo";
 import { EntryBackground } from "@/components/layout/EntryBackground";
+import { InstallAppPill } from "@/components/install/InstallAppPill";
 
 export function Login() {
   const [username, setUsername] = useState("");
@@ -81,7 +82,11 @@ export function Login() {
           Babi Group
         </div>
 
-        <form onSubmit={handleSubmit} className="mt-10 flex w-full flex-col gap-3">
+        <div className="mt-6 w-full">
+          <InstallAppPill />
+        </div>
+
+        <form onSubmit={handleSubmit} className="mt-6 flex w-full flex-col gap-3">
           <label className="flex flex-col gap-2">
             <span className="eyebrow">שם משתמש</span>
             <input
