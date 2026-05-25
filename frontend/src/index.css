@@ -1,0 +1,126 @@
+@import "tailwindcss";
+
+/* ============================================
+   Mundial 2026 — Design Tokens (Tri-Nation)
+   ============================================ */
+@theme {
+  --color-bg: #0A0E1A;
+  --color-bg-deep: #05070D;
+  --color-surface: #141B2D;
+  --color-surface-2: #0F1422;
+  --color-surface-3: #1B2540;
+
+  --color-text: #F4F6FB;
+  --color-muted: #8A93A6;
+
+  --color-brand-red: #E63946;
+  --color-brand-red-soft: #FF7A85;
+  --color-brand-navy: #1D3557;
+  --color-brand-green: #06A77D;
+  --color-brand-green-soft: #34D399;
+
+  --color-gold: #FFD93D;
+  --color-silver: #C8D0DD;
+  --color-bronze: #CD7F32;
+
+  --color-live: #22C55E;
+  --color-error: #FF5C72;
+  --color-warning: #F4A261;
+
+  /* "Twemoji Country Flags" קודם ל-Rubik כדי שדגלי אמוג'י יוצגו נכון ב-Windows */
+  --font-sans: "Twemoji Country Flags", "Rubik", system-ui, sans-serif;
+  --font-display: "Twemoji Country Flags", "Rubik", system-ui, sans-serif;
+
+  --radius: 16px;
+  --radius-lg: 20px;
+  --radius-xl: 24px;
+}
+
+/* ============================================
+   Base reset
+   ============================================ */
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html, body {
+  background: var(--color-bg-deep);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+#root {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* ============================================
+   LTR numerals inside RTL text
+   ============================================ */
+.num {
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1, "ss01" 1, "cv11" 1, "kern" 1;
+}
+
+.num-tight {
+  letter-spacing: -0.04em;
+}
+
+/* ============================================
+   Editorial typography helpers
+   ============================================ */
+.eyebrow {
+  color: var(--color-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+.hbrw-display {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+/* ============================================
+   Phone frame (preserved from mockup for now;
+   we'll remove later when real PWA is on a real device)
+   ============================================ */
+.phone-shell {
+  background:
+    radial-gradient(900px 500px at 50% -100px, rgba(255, 255, 255, 0.04), transparent 60%),
+    radial-gradient(800px 600px at 50% 120%, rgba(230, 57, 70, 0.04), transparent 60%),
+    var(--color-bg-deep);
+}
+
+/* ============================================
+   Card baseline
+   ============================================ */
+.card {
+  background: var(--color-surface);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-lg);
+}
+
+/* ============================================
+   No tap highlight
+   ============================================ */
+.no-tap {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ============================================
+   Hide scrollbar
+   ============================================ */
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hidden {
+  scrollbar-width: none;
+}

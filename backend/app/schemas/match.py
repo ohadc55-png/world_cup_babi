@@ -1,0 +1,34 @@
+"""Pydantic models for matches API."""
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Literal
+
+from pydantic import BaseModel, Field
+
+Stage = Literal["group", "r32", "r16", "qf", "sf", "third_place", "final"]
+MatchStatus = Literal["scheduled", "live", "finished", "postponed", "cancelled"]
+
+
+class MatchOut(BaseModel):
+    id: int
+    stage: Stage
+    group_name: str | None = None
+    group_round: int | None = Field(default=None, ge=1, le=3)
+    match_number: int | None = None
+    team_home: str
+    team_away: str
+    team_home_fifa_rank: int | None = None
+    team_away_fifa_rank: int | None = None
+    kickoff_utc: datetime
+    venue: str | None = None
+    status: MatchStatus
+    score_home: int | None = None
+    score_away: int | None = None
+    score_home_ht: int | None = None
+    score_away_ht: int | None = None
+    score_home_pen: int | None = None  # פנדלים — בפלייאוף בלבד
+    score_away_pen: int | None = None
+    finished_at: datetime | None = None
+    predictions_locked: bool
+    updated_at: datetime

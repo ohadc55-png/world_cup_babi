@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual envs (we use my_conda, but local venvs are also ignored)
+.venv/
+venv/
+env/
+
+# Secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Node
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Build artifacts
+build/
+*.log
+
+# Claude Code local config / scheduled tasks
+.claude/
+
+# Source images & media (not used by the app — frontend/public/img is what gets served)
+/img/
+
+# Temporary diagnostic outputs from local scripts
+*_out.txt
+backend/scripts/demo_state.json
