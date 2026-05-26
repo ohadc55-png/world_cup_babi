@@ -9,7 +9,7 @@ import { Bell, ChevronLeft, UserPlus, Sparkles } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useMatchesToday, useNextMatch } from "@/hooks/useMatches";
 import { useMyGame } from "@/hooks/useGame";
-import { useMyScore } from "@/hooks/useLeaderboard";
+import { useLeaderboard, useMyScore } from "@/hooks/useLeaderboard";
 import { getTeamInfo } from "@/lib/teams";
 import type { Match } from "@/types";
 import { Logo } from "@/components/layout/Logo";
@@ -99,6 +99,7 @@ export function Home() {
   const { data: todayMatches, loading: todayLoading } = useMatchesToday();
   const { data: myGame } = useMyGame();
   const { data: myScore } = useMyScore();
+  const { data: leaderboard, loading: leaderboardLoading } = useLeaderboard();
   const [inviteOpen, setInviteOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -340,49 +341,113 @@ export function Home() {
         <section className="mt-7">
           <div className="mb-2.5 flex items-center justify-between px-1">
             <span className="eyebrow">לוח הצמרת</span>
-            <button className="inline-flex items-center gap-1 text-[11px] font-semibold text-[color:var(--color-muted)] hover:text-white">
+            <button
+              onClick={() => navigate("/leaderboard")}
+              className="inline-flex items-center gap-1 text-[11px] font-semibold text-[color:var(--color-muted)] hover:text-white"
+            >
               <span>דירוג מלא</span>
               <ChevronLeft size={10} strokeWidth={2.4} />
             </button>
           </div>
 
-          <div
-            className="flex items-center gap-3 px-4 py-3.5"
-            style={{
-              background:
-                "linear-gradient(90deg, rgba(255,217,61,0.06), rgba(255,217,61,0) 70%)",
-              border: "1px solid rgba(255,255,255,0.06)",
-              borderRadius: 16,
-            }}
-          >
+          {leaderboardLoading && (
             <div
-              className="num grid h-7 w-7 shrink-0 place-items-center rounded-full text-[12px] font-extrabold"
+              className="px-4 py-3.5 text-[12px] text-[color:var(--color-muted)]"
+              style={{ border: "1px solid rgba(255,255,255,0.06)", borderRadius: 16 }}
+            >
+              טוען דירוג...
+            </div>
+          )}
+
+          {!leaderboardLoading && (leaderboard?.length ?? 0) === 0 && (
+            <div
+              className="px-4 py-4 text-center text-[12px] text-[color:var(--color-muted)]"
               style={{
-                background: "linear-gradient(135deg,#FFD93D,#E0B617)",
-                color: "#1A1300",
-                boxShadow: "0 6px 18px -6px rgba(255,217,61,0.5)",
+                background: "rgba(255,255,255,0.02)",
+                border: "1px dashed rgba(255,255,255,0.10)",
+                borderRadius: 16,
               }}
             >
-              1
+              <p className="font-bold text-white">עדיין אין דירוג</p>
+              <p className="mt-1">הניחושים ייפתחו עם תחילת המונדיאל. בינתיים — תזמין חברים לקבוצה!</p>
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[13.5px] font-bold leading-tight text-white">דניאל כהן</p>
+          )}
+
+          {!leaderboardLoading && leaderboard && leaderboard.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              {leaderboard.slice(0, 3).map((entry) => (
+                <LeaderboardRow
+                  key={entry.user_id}
+                  rank={entry.rank}
+                  username={entry.username}
+                  points={entry.total_points}
+                  isMe={entry.user_id === user?.id}
+                />
+              ))}
             </div>
-            <div className="text-end">
-              <span
-                className="num text-[18px] font-extrabold num-tight"
-                style={{ color: "#FFD93D", textShadow: "0 0 18px rgba(255,217,61,0.25)" }}
-              >
-                312
-              </span>
-              <span className="ms-1 text-[10px] font-medium text-[color:var(--color-muted)]">נק׳</span>
-            </div>
-          </div>
+          )}
         </section>
       </main>
 
       {/* Bottom-sheet להזמנת חברים */}
       <InviteSheet game={inviteOpen ? myGame : null} onClose={() => setInviteOpen(false)} />
+    </div>
+  );
+}
+
+// שורה אחת בלוח הצמרת ב-Home (תצוגה דחוסה של top 3)
+function LeaderboardRow({
+  rank, username, points, isMe,
+}: { rank: number; username: string; points: number; isMe: boolean }) {
+  const isFirst = rank === 1;
+  const medalBg = isFirst
+    ? "linear-gradient(135deg,#FFD93D,#E0B617)"
+    : rank === 2
+      ? "linear-gradient(135deg,#C0C8D4,#8A93A6)"
+      : "linear-gradient(135deg,#CD7F32,#A0612A)";
+  const medalColor = isFirst ? "#1A1300" : rank === 2 ? "#0F1626" : "white";
+
+  return (
+    <div
+      className="flex items-center gap-3 px-4 py-3"
+      style={{
+        background: isMe
+          ? "linear-gradient(90deg, rgba(230,57,70,0.10), rgba(230,57,70,0) 70%)"
+          : isFirst
+            ? "linear-gradient(90deg, rgba(255,217,61,0.06), rgba(255,217,61,0) 70%)"
+            : "rgba(20,27,45,0.40)",
+        border: `1px solid ${isMe ? "rgba(230,57,70,0.35)" : "rgba(255,255,255,0.06)"}`,
+        borderRadius: 14,
+      }}
+    >
+      <div
+        className="num grid h-7 w-7 shrink-0 place-items-center rounded-full text-[12px] font-extrabold"
+        style={{
+          background: medalBg,
+          color: medalColor,
+          boxShadow: isFirst ? "0 6px 18px -6px rgba(255,217,61,0.5)" : undefined,
+        }}
+      >
+        {rank}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[13.5px] font-bold leading-tight text-white">
+          {username}
+          {isMe && <span className="ms-1 text-[10px] font-bold text-[color:var(--color-brand-red)]">(אתה)</span>}
+        </p>
+      </div>
+      <div className="text-end">
+        <span
+          className="num text-[16px] font-extrabold num-tight"
+          style={{
+            color: isFirst ? "#FFD93D" : "white",
+            textShadow: isFirst ? "0 0 14px rgba(255,217,61,0.25)" : undefined,
+          }}
+        >
+          {points}
+        </span>
+        <span className="ms-1 text-[10px] font-medium text-[color:var(--color-muted)]">נק׳</span>
+      </div>
     </div>
   );
 }
