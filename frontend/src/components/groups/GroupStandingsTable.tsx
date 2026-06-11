@@ -46,18 +46,17 @@ function TableContent({ standing, large = false }: { standing: GroupStanding; la
         </span>
       </div>
 
-      {/* Column headers — Hebrew RTL order:
-          Team (right) → Pts (most important, adjacent) → GD → L → D → W (left) */}
+      {/* Column headers */}
       <div
-        className="grid grid-cols-[1fr_28px_28px_22px_22px_22px] gap-1.5 px-3 py-1.5 text-[9px] font-bold text-[color:var(--color-muted)]"
+        className="grid grid-cols-[1fr_22px_22px_22px_28px_28px] gap-1.5 px-3 py-1.5 text-[9px] font-bold text-[color:var(--color-muted)]"
         style={{ background: "rgba(0,0,0,0.18)" }}
       >
         <span className="text-end">קבוצה</span>
-        <span className="text-center" title="נקודות" style={{ color: "#FFD93D" }}>Pts</span>
-        <span className="text-center" title="הפרש שערים">GD</span>
-        <span className="text-center" title="הפסדים">L</span>
-        <span className="text-center" title="תיקו">D</span>
         <span className="text-center" title="נצחונות">W</span>
+        <span className="text-center" title="תיקו">D</span>
+        <span className="text-center" title="הפסדים">L</span>
+        <span className="text-center" title="הפרש שערים">GD</span>
+        <span className="text-center" title="נקודות">Pts</span>
       </div>
 
       {/* Rows */}
@@ -90,14 +89,12 @@ function StandingRow({
 
   return (
     <div
-      className={`grid grid-cols-[1fr_28px_28px_22px_22px_22px] items-center gap-1.5 px-3 ${large ? "py-2.5" : "py-2"}`}
+      className={`grid grid-cols-[1fr_22px_22px_22px_28px_28px] items-center gap-1.5 px-3 ${large ? "py-2.5" : "py-2"}`}
       style={{
         borderTop: "1px solid rgba(255,255,255,0.04)",
         background: advancing && groupComplete ? "rgba(6,167,125,0.05)" : undefined,
       }}
     >
-      {/* Team cell — rank (right) → flag → name (left).
-          flag adjacent to rank, both serve as identifier; name reads naturally after. */}
       <div className="flex items-center gap-1.5 min-w-0 justify-end">
         <span
           className="num font-bold"
@@ -105,21 +102,26 @@ function StandingRow({
         >
           {row.position}
         </span>
-        <span className={large ? "text-[16px]" : "text-[14px]"}>{info.flag}</span>
         <span className={`font-bold text-white truncate ${large ? "text-[13.5px]" : "text-[12.5px]"}`}>
           {info.he}
         </span>
+        <span className={large ? "text-[16px]" : "text-[14px]"}>{info.flag}</span>
       </div>
-
-      {/* Pts — most important, adjacent to team */}
       <span
-        className={`num text-center font-extrabold num-tight ${large ? "text-[14px]" : "text-[12.5px]"}`}
-        style={{ color: "#FFD93D" }}
+        className={`num text-center font-medium text-white/80 ${large ? "text-[12px]" : "text-[11px]"}`}
       >
-        {row.points}
+        {row.won}
       </span>
-
-      {/* GD */}
+      <span
+        className={`num text-center font-medium text-white/80 ${large ? "text-[12px]" : "text-[11px]"}`}
+      >
+        {row.drawn}
+      </span>
+      <span
+        className={`num text-center font-medium text-white/80 ${large ? "text-[12px]" : "text-[11px]"}`}
+      >
+        {row.lost}
+      </span>
       <span
         className={`num text-center font-bold ${large ? "text-[12px]" : "text-[11px]"}`}
         style={{
@@ -128,26 +130,11 @@ function StandingRow({
       >
         {row.goal_diff > 0 ? `+${row.goal_diff}` : row.goal_diff}
       </span>
-
-      {/* L */}
       <span
-        className={`num text-center font-medium text-white/80 ${large ? "text-[12px]" : "text-[11px]"}`}
+        className={`num text-center font-extrabold num-tight ${large ? "text-[14px]" : "text-[12.5px]"}`}
+        style={{ color: "#FFD93D" }}
       >
-        {row.lost}
-      </span>
-
-      {/* D */}
-      <span
-        className={`num text-center font-medium text-white/80 ${large ? "text-[12px]" : "text-[11px]"}`}
-      >
-        {row.drawn}
-      </span>
-
-      {/* W */}
-      <span
-        className={`num text-center font-medium text-white/80 ${large ? "text-[12px]" : "text-[11px]"}`}
-      >
-        {row.won}
+        {row.points}
       </span>
     </div>
   );
