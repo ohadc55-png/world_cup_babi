@@ -157,9 +157,31 @@ def _tournament_has_started() -> bool:
     return (played.count or 0) > 0
 
 
+def _user_in_grace_period(user_id: str) -> bool:
+    """
+    האם המשתמש בחלון חסד מנהלי להשלמת ניחושי טווח-ארוך אחרי שהטורניר התחיל?
+    מבוסס על שני env vars: LONGTERM_GRACE_USER_IDS (whitelist) ו-LONGTERM_GRACE_UNTIL (תאריך).
+    שני השדות חייבים להיות מאוכלסים, ה-now חייב להיות לפני ה-UNTIL.
+    """
+    raw_ids = (settings.LONGTERM_GRACE_USER_IDS or "").strip()
+    raw_until = (settings.LONGTERM_GRACE_UNTIL or "").strip()
+    if not raw_ids or not raw_until:
+        return False
+    ids = {x.strip() for x in raw_ids.split(",") if x.strip()}
+    if user_id not in ids:
+        return False
+    try:
+        until = datetime.fromisoformat(raw_until.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    return datetime.now(timezone.utc) < until
+
+
 def _assert_group_open(user_id: str, group_name: str) -> None:
-    """ניחושי טבלת בית ננעלים: או ע"י cron (locked_at), או אם הטורניר כבר התחיל."""
-    if _tournament_has_started():
+    """ניחושי טבלת בית ננעלים: או ע"י cron (locked_at), או אם הטורניר כבר התחיל.
+    יוצא מן הכלל: משתמשים ב-Grace period (env var) — מותר להם לעדכן עד DEADLINE."""
+    in_grace = _user_in_grace_period(user_id)
+    if _tournament_has_started() and not in_grace:
         raise HTTPException(
             status_code=status.HTTP_410_GONE,
             detail="ניחושי הבתים נעולים — המונדיאל כבר התחיל",
@@ -172,7 +194,7 @@ def _assert_group_open(user_id: str, group_name: str) -> None:
         .maybe_single()
         .execute()
     )
-    if existing and existing.data and existing.data.get("locked_at"):
+    if existing and existing.data and existing.data.get("locked_at") and not in_grace:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="ניחושי הבית נעולים",
