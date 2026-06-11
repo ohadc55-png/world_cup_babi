@@ -95,7 +95,8 @@ function MatchHeaderCard({ match }: { match: Match }) {
   const isFinished = match.status === "finished";
   const isLive = match.status === "live";
 
-  const score = isFinished
+  // תוצאה גם ב-live (מתעדכנת מ-ESPN כל ~2 דק׳)
+  const score = (isFinished || isLive)
     ? formatScore(match.score_home, match.score_away, match.score_home_pen, match.score_away_pen)
     : null;
 
@@ -174,11 +175,24 @@ function MatchHeaderCard({ match }: { match: Match }) {
         />
       </div>
 
-      {/* Kickoff time */}
-      <p className="num mt-3 text-center text-[11px] text-[color:var(--color-muted)]">
-        <Clock size={10} className="inline -mt-0.5 me-1" />
-        {kickoffLabel}
-      </p>
+      {/* בתחתית: שעון בזמן live, אחרת תאריך/שעת kickoff */}
+      {isLive && match.display_clock ? (
+        <p
+          className="num mt-3 text-center text-[20px] font-extrabold"
+          style={{
+            color: "#FFD93D",
+            textShadow: "0 0 18px rgba(255,217,61,0.35)",
+            letterSpacing: "0.04em",
+          }}
+        >
+          {match.display_clock}
+        </p>
+      ) : (
+        <p className="num mt-3 text-center text-[11px] text-[color:var(--color-muted)]">
+          <Clock size={10} className="inline -mt-0.5 me-1" />
+          {kickoffLabel}
+        </p>
+      )}
     </motion.section>
   );
 }

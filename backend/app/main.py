@@ -1,8 +1,14 @@
 """FastAPI entry point for Mundial 2026."""
+import asyncio
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
+from app.crons.lock_predictions import lock_predictions_now
+from app.crons.sync_results import sync_all_active
 from app.routes import admin as admin_routes
 from app.routes import auth as auth_routes
 from app.routes import games as games_routes
@@ -14,12 +20,62 @@ from app.routes import users as users_routes
 from app.routes import groups as groups_routes
 from app.routes import agent as agent_routes
 
+logger = logging.getLogger(__name__)
+
+
+# ============================================================
+# In-process scheduler (replaces external Railway crons)
+# ============================================================
+# 2 background jobs run inside the FastAPI process:
+#   - sync_results: every 2 min, pulls ESPN scores into DB
+#   - lock_predictions: every 5 min, locks predictions 30 min before kickoff
+#
+# Gated on ENVIRONMENT=production so local --reload dev doesn't double-schedule.
+# If a job crashes, the next cycle still runs (try/except per iteration).
+# IMPORTANT: assumes single-replica deployment. If Railway ever scales to
+# multiple instances, each will run these jobs — add a DB advisory lock then.
+
+async def _every(seconds: int, name: str, fn) -> None:
+    """Run sync fn() every `seconds` seconds; errors don't kill the loop."""
+    await asyncio.sleep(20)  # let startup settle before first run
+    while True:
+        try:
+            result = await asyncio.to_thread(fn)
+            logger.info(f"[scheduler] {name}: {result}")
+        except Exception:
+            logger.exception(f"[scheduler] {name} crashed (will retry next cycle)")
+        await asyncio.sleep(seconds)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    tasks: list[asyncio.Task] = []
+    if settings.ENVIRONMENT == "production":
+        tasks = [
+            asyncio.create_task(_every(120, "sync_results", sync_all_active)),
+            asyncio.create_task(_every(300, "lock_predictions", lock_predictions_now)),
+        ]
+        logger.info("[scheduler] started 2 background jobs")
+    else:
+        logger.info(f"[scheduler] disabled (ENVIRONMENT={settings.ENVIRONMENT})")
+    try:
+        yield
+    finally:
+        for t in tasks:
+            t.cancel()
+        for t in tasks:
+            try:
+                await t
+            except (asyncio.CancelledError, Exception):
+                pass
+
 
 app = FastAPI(
     title="Mundial 2026 API",
     version="0.1.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 app.add_middleware(

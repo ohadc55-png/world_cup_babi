@@ -66,7 +66,27 @@ def matches_today(
 def next_match(
     _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
 ) -> MatchOut | None:
-    """המשחק הבא שעוד לא התחיל. None אם הטורניר נגמר."""
+    """
+    "המשחק הבא" לתצוגת ה-Hero — סדר עדיפויות:
+      1. משחק LIVE שמתנהל עכשיו (אם יש כזה).
+      2. אחרת — המשחק הקרוב שעוד לא התחיל.
+      3. אחרת — None (הטורניר נגמר).
+
+    כך המסך הראשי עובר אוטומטית להציג את המשחק החי כשהוא מתחיל.
+    """
+    # priority 1: live match
+    live = (
+        supabase_admin.table("matches")
+        .select("*")
+        .eq("status", "live")
+        .order("kickoff_utc")
+        .limit(1)
+        .execute()
+    )
+    if live.data:
+        return MatchOut(**live.data[0])
+
+    # priority 2: next scheduled match
     now = datetime.now(timezone.utc).isoformat()
     result = (
         supabase_admin.table("matches")

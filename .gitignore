@@ -47,3 +47,6 @@ build/
 # Temporary diagnostic outputs from local scripts
 *_out.txt
 backend/scripts/demo_state.json
+
+# DB backups (contain pin_hash + push endpoints — sensitive)
+/backups/

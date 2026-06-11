@@ -1,4 +1,7 @@
 // hooks לדף פרטי משחק: שולפים גם את המשחק עצמו וגם את ניחושי החברים.
+//
+// useMatch מרענן כל 30 שניות (רק כשהדף visible) כדי שתוצאה ושעון של משחק חי
+// יתעדכנו אוטומטית. useMatchPredictions לא מרענן — ניחושים נעולים בזמן live.
 
 import { useEffect, useState } from "react";
 import { api, ApiException } from "@/lib/api";
@@ -9,6 +12,8 @@ type HookResult<T> = {
   loading: boolean;
   error: string | null;
 };
+
+const POLL_INTERVAL_MS = 30_000;
 
 export function useMatch(matchId: number | null): HookResult<Match> {
   const [data, setData] = useState<Match | null>(null);
@@ -23,10 +28,14 @@ export function useMatch(matchId: number | null): HookResult<Match> {
     }
     let cancelled = false;
     setLoading(true);
-    (async () => {
+
+    async function fetchOnce() {
       try {
         const m = await api<Match>(`/api/matches/${matchId}`);
-        if (!cancelled) setData(m);
+        if (!cancelled) {
+          setData(m);
+          setError(null);
+        }
       } catch (e) {
         if (!cancelled) {
           setError(e instanceof ApiException ? `שגיאה ${e.status}` : "שגיאת רשת");
@@ -34,9 +43,20 @@ export function useMatch(matchId: number | null): HookResult<Match> {
       } finally {
         if (!cancelled) setLoading(false);
       }
-    })();
+    }
+
+    function maybeRefresh() {
+      if (!cancelled && document.visibilityState === "visible") fetchOnce();
+    }
+
+    fetchOnce();
+    const timer = window.setInterval(maybeRefresh, POLL_INTERVAL_MS);
+    document.addEventListener("visibilitychange", maybeRefresh);
+
     return () => {
       cancelled = true;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", maybeRefresh);
     };
   }, [matchId]);
 

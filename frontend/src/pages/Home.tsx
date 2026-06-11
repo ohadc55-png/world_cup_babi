@@ -119,9 +119,13 @@ export function Home() {
 
   const initial = user?.username?.[0]?.toUpperCase() ?? "?";
 
-  // מיפוי משחקי היום ל-MatchCard props (memoized כדי לא לחשב כל render)
-  const todayCardProps = useMemo(() => {
-    return (todayMatches ?? []).map(matchToCardProps);
+  // משחקי היום שאמורים להופיע ברשימה התחתונה.
+  // מחריגים את המשחק החי — הוא כבר ב-Hero למעלה.
+  // שומרים גם את ה-Match המקורי + ה-props הממופים יחד כדי שהאינדקסים לא יתבלבלו.
+  const todayItems = useMemo(() => {
+    return (todayMatches ?? [])
+      .filter((m) => m.status !== "live")
+      .map((m) => ({ match: m, card: matchToCardProps(m) }));
   }, [todayMatches]);
 
   return (
@@ -279,7 +283,20 @@ export function Home() {
               ? `בית ${nextMatch.group_name} · משחק ${nextMatch.match_number ?? nextMatch.id}`
               : `${stageHe(nextMatch.stage)} · משחק ${nextMatch.id}`
           }
-          onPredictClick={() => navigate("/predictions")}
+          onPredictClick={() =>
+            nextMatch.status === "live"
+              ? navigate(`/match/${nextMatch.id}`)
+              : navigate("/predictions")
+          }
+          liveScore={
+            nextMatch.status === "live"
+              ? {
+                  home: nextMatch.score_home ?? 0,
+                  away: nextMatch.score_away ?? 0,
+                }
+              : undefined
+          }
+          liveClock={nextMatch.status === "live" ? nextMatch.display_clock : undefined}
         />
       )}
 
@@ -302,31 +319,29 @@ export function Home() {
           <div className="mb-3 flex items-center justify-between px-1">
             <span className="eyebrow">המשחקים של היום</span>
             <span className="text-[10.5px] font-medium text-[color:var(--color-muted)]">
-              <span className="num font-bold text-white">{todayCardProps.length}</span> משחקים
+              <span className="num font-bold text-white">{todayItems.length}</span> משחקים
             </span>
           </div>
           {todayLoading && (
             <p className="py-8 text-center text-sm text-[color:var(--color-muted)]">טוען...</p>
           )}
-          {!todayLoading && todayCardProps.length === 0 && (
+          {!todayLoading && todayItems.length === 0 && (
             <p className="py-8 text-center text-sm text-[color:var(--color-muted)]">
-              אין משחקים היום
+              אין משחקים נוספים היום
             </p>
           )}
-          {!todayLoading && todayCardProps.length > 0 && (
+          {!todayLoading && todayItems.length > 0 && (
             <div className="flex flex-col gap-2.5">
-              {todayCardProps.map((m, i) => {
-                const original = (todayMatches ?? [])[i];
+              {todayItems.map(({ match: original, card }) => {
                 // לחיצה: רק אם המשחק נעול/חי/סיים -> ניווט לדף פרטי המשחק.
                 const clickable =
-                  original &&
-                  (original.predictions_locked ||
-                    original.status === "live" ||
-                    original.status === "finished");
+                  original.predictions_locked ||
+                  original.status === "live" ||
+                  original.status === "finished";
                 return (
                   <MatchCard
-                    key={i}
-                    {...m}
+                    key={original.id}
+                    {...card}
                     onClick={
                       clickable ? () => navigate(`/match/${original.id}`) : undefined
                     }

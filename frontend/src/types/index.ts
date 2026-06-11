@@ -86,6 +86,7 @@ export type Match = {
   score_away_pen: number | null;
   finished_at: string | null;
   predictions_locked: boolean;
+  display_clock: string | null;    // "67'", "45+2'", "HT" — רק במשחק חי
   updated_at: string;
 };
 

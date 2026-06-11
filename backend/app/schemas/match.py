@@ -31,4 +31,5 @@ class MatchOut(BaseModel):
     score_away_pen: int | None = None
     finished_at: datetime | None = None
     predictions_locked: bool
+    display_clock: str | None = None   # "67'", "45+2'", "HT", "ET 105'" — רק במשחק חי
     updated_at: datetime

@@ -55,11 +55,32 @@ def _get_match_or_404(match_id: int) -> dict:
 
 
 def _assert_match_open(match: dict) -> None:
+    """
+    ניחוש מותר רק אם כל 3 התנאים מתקיימים:
+      1. predictions_locked = False (ה-cron עוד לא נעל)
+      2. status = 'scheduled' (לא live, לא finished)
+      3. kickoff_utc עוד לא עבר
+
+    שכבת הגנה כפולה — גם אם ה-cron מאחר/נופל, ה-API חוסם כשהמשחק התחיל.
+    """
     if match.get("predictions_locked"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="ניחושים נעולים למשחק זה",
         )
+    if match.get("status") in ("live", "finished"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="המשחק כבר התחיל - לא ניתן לערוך ניחוש",
+        )
+    kickoff_str = match.get("kickoff_utc")
+    if kickoff_str:
+        kickoff = datetime.fromisoformat(kickoff_str.replace("Z", "+00:00"))
+        if kickoff <= datetime.now(timezone.utc):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="זמן הניחוש עבר - המשחק עומד להתחיל",
+            )
 
 
 @router.get("/matches", response_model=list[MatchPredictionOut])

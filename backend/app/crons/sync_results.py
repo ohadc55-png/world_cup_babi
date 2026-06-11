@@ -94,6 +94,7 @@ def fetch_match_result_from_api(match: dict) -> Optional[dict]:
         "score_away": espn_result["score_away"],
         "score_home_pen": espn_result.get("score_home_pen"),
         "score_away_pen": espn_result.get("score_away_pen"),
+        "display_clock": espn_result.get("display_clock"),
     }
 
 
@@ -118,11 +119,13 @@ def sync_one_match(match: dict, dry_run: bool = False) -> MatchSyncResult:
 
     new_status = api_data["status"]
     new_score = (api_data["score_home"], api_data["score_away"])
+    new_clock = api_data.get("display_clock")
+    old_clock = match.get("display_clock")
     result["new_status"] = new_status
     result["new_score"] = new_score
 
-    # אין שינוי?
-    if new_status == old_status and new_score == old_score:
+    # אין שינוי בכלל? (כולל ה-clock כדי שדקה תזוז גם בלי שער)
+    if new_status == old_status and new_score == old_score and new_clock == old_clock:
         return result
 
     if dry_run:
@@ -134,6 +137,7 @@ def sync_one_match(match: dict, dry_run: bool = False) -> MatchSyncResult:
         "score_home": new_score[0],
         "score_away": new_score[1],
         "status": new_status,
+        "display_clock": new_clock,
     }
     if "score_home_ht" in api_data:
         update["score_home_ht"] = api_data["score_home_ht"]

@@ -13,6 +13,11 @@ type HeroNextMatchProps = {
   kickoffLocal: string; // למשל "22:00"
   matchLabel: string; // למשל "בית A · משחק 1"
   onPredictClick?: () => void;
+  // אם הוגדר — המשחק LIVE עכשיו. במקום countdown מציגים תוצאה ענקית + תווית LIVE.
+  // CTA משתנה ל"ראה משחק" וה-pill למעלה הופך לאדום פועם.
+  liveScore?: { home: number; away: number };
+  // דקה נוכחית מ-ESPN ("67'", "45+2'", "HT"). אופציונלי — מוצג רק במצב live.
+  liveClock?: string | null;
 };
 
 function formatCountdown(totalSeconds: number): { d: string; h: string; m: string; s: string } {
@@ -38,7 +43,10 @@ export function HeroNextMatch({
   kickoffLocal,
   matchLabel,
   onPredictClick,
+  liveScore,
+  liveClock,
 }: HeroNextMatchProps) {
+  const isLive = liveScore !== undefined;
   const { d, h, m, s } = formatCountdown(countdownSeconds);
   // מספר שעות+דקות לתצוגת ה-pill בכותרת
   const hoursLeft = Math.floor(countdownSeconds / 3600);
@@ -104,12 +112,13 @@ export function HeroNextMatch({
         {/* Top meta strip */}
         <div className="flex items-center justify-between">
           <span
-            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold text-white"
+            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-extrabold text-white"
             style={{
-              background: "rgba(0,0,0,0.32)",
-              border: "1px solid rgba(255,255,255,0.16)",
+              background: isLive ? "rgba(230,57,70,0.30)" : "rgba(0,0,0,0.32)",
+              border: `1px solid ${isLive ? "rgba(230,57,70,0.65)" : "rgba(255,255,255,0.16)"}`,
               backdropFilter: "blur(10px)",
               WebkitBackdropFilter: "blur(10px)",
+              letterSpacing: isLive ? "0.10em" : undefined,
             }}
           >
             <span
@@ -119,7 +128,13 @@ export function HeroNextMatch({
                 animation: "livePulseInline 1.2s ease-out infinite",
               }}
             />
-            בעוד <span className="num">{hoursLeft}</span> שעות <span className="num">{minutesLeft % 60}</span> דקות
+            {isLive ? (
+              <span>LIVE</span>
+            ) : (
+              <>
+                בעוד <span className="num">{hoursLeft}</span> שעות <span className="num">{minutesLeft % 60}</span> דקות
+              </>
+            )}
           </span>
           <span className="eyebrow text-white/55 num">{matchLabel}</span>
         </div>
@@ -154,19 +169,55 @@ export function HeroNextMatch({
           </div>
         </div>
 
-        {/* Countdown — 4 יחידות (ימים/שעות/דקות/שניות) ב-LTR.
-            בעברית RTL: ימים בשמאל, שניות בימין. */}
-        <div className="text-center" style={{ direction: "ltr" }}>
-          <div className="mx-auto flex max-w-[340px] items-end justify-center gap-2">
-            <CountdownUnit num={d} label="ימים" />
-            <CountdownSep />
-            <CountdownUnit num={h} label="שעות" />
-            <CountdownSep />
-            <CountdownUnit num={m} label="דקות" />
-            <CountdownSep />
-            <CountdownUnit num={s} label="שניות" />
+        {/* אמצע: countdown לפני המשחק, או תוצאה ענקית במצב LIVE */}
+        {isLive ? (
+          // RTL inherited — first child renders on the right.
+          // Home renders right (matches the flag/name on the right above);
+          // away renders left.
+          <div className="text-center">
+            <div className="mx-auto flex items-end justify-center gap-3">
+              <ScoreDigit value={liveScore!.home} />
+              <span
+                className="num text-white/40"
+                style={{ fontSize: 56, fontWeight: 700, lineHeight: 1, marginBottom: 8 }}
+              >
+                —
+              </span>
+              <ScoreDigit value={liveScore!.away} />
+            </div>
+            {liveClock ? (
+              <p
+                className="num mt-3 text-[22px] font-extrabold"
+                style={{
+                  color: "#FFD93D",
+                  textShadow: "0 0 18px rgba(255,217,61,0.35)",
+                  letterSpacing: "0.04em",
+                }}
+              >
+                {liveClock}
+              </p>
+            ) : (
+              <p
+                className="mt-3 text-[10px] font-bold uppercase text-white/55"
+                style={{ letterSpacing: "0.22em" }}
+              >
+                תוצאה חיה
+              </p>
+            )}
           </div>
-        </div>
+        ) : (
+          <div className="text-center" style={{ direction: "ltr" }}>
+            <div className="mx-auto flex max-w-[340px] items-end justify-center gap-2">
+              <CountdownUnit num={d} label="ימים" />
+              <CountdownSep />
+              <CountdownUnit num={h} label="שעות" />
+              <CountdownSep />
+              <CountdownUnit num={m} label="דקות" />
+              <CountdownSep />
+              <CountdownUnit num={s} label="שניות" />
+            </div>
+          </div>
+        )}
 
         {/* spacer שני - דוחף את ה-CTA לתחתית */}
         <div className="flex-1" />
@@ -186,7 +237,7 @@ export function HeroNextMatch({
                 "0 14px 38px -10px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.22)",
             }}
           >
-            <span>נחש עכשיו</span>
+            <span>{isLive ? "ראה משחק" : "נחש עכשיו"}</span>
             <ArrowLeft size={16} strokeWidth={2.4} />
           </button>
 
@@ -251,6 +302,25 @@ function CountdownSep() {
       style={{ fontSize: 38, fontWeight: 700, lineHeight: 1, marginBottom: 18 }}
     >
       :
+    </span>
+  );
+}
+
+// תוצאה במצב LIVE — ספרה ענקית עם זוהר זהוב.
+function ScoreDigit({ value }: { value: number }) {
+  return (
+    <span
+      className="num text-white"
+      style={{
+        fontSize: 80,
+        fontWeight: 900,
+        letterSpacing: "-0.04em",
+        lineHeight: 1,
+        textShadow:
+          "0 6px 30px rgba(0,0,0,0.55), 0 0 50px rgba(255,217,61,0.18)",
+      }}
+    >
+      {value}
     </span>
   );
 }
