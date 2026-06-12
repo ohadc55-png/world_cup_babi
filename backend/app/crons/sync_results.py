@@ -189,6 +189,21 @@ def sync_one_match(match: dict, dry_run: bool = False) -> MatchSyncResult:
 # Match events sync (Phase 9 — goals + red cards)
 # ============================================================
 
+# ESPN משתמש בשמות קבוצות מעט שונים מ-openfootball שמילא לנו את matches.
+# כל פעם שמתגלה mismatch — להוסיף כאן.
+ESPN_TO_DB_TEAM_NAME = {
+    "Czechia": "Czech Republic",
+    "Bosnia-Herzegovina": "Bosnia & Herzegovina",
+    "United States": "USA",   # ESPN sometimes uses this for USMNT
+    "USA": "USA",
+}
+
+
+def _normalize_espn_team_name(espn_name: str) -> str:
+    """תרגום שם קבוצה מ-ESPN לשם הנפוץ ב-matches table."""
+    return ESPN_TO_DB_TEAM_NAME.get(espn_name, espn_name)
+
+
 def _sync_match_events(match: dict) -> dict:
     """
     Fetch goals + red cards from ESPN for a match and upsert into match_events.
@@ -211,7 +226,7 @@ def _sync_match_events(match: dict) -> dict:
 
     rows: list[dict] = []
     for g in goals:
-        tname = g.get("team_name") or ""
+        tname = _normalize_espn_team_name(g.get("team_name") or "")
         side = "home" if tname == team_home_name else "away" if tname == team_away_name else None
         if side is None:
             # ESPN team name didn't match either side — skip (probably a name mismatch
@@ -234,7 +249,7 @@ def _sync_match_events(match: dict) -> dict:
         })
 
     for rc in red_cards:
-        tname = rc.get("team_name") or ""
+        tname = _normalize_espn_team_name(rc.get("team_name") or "")
         side = "home" if tname == team_home_name else "away" if tname == team_away_name else None
         if side is None:
             logger.warning(f"match {match_id}: red-card team '{tname}' matches neither side")
