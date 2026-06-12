@@ -93,6 +93,22 @@ export type Match = {
 };
 
 // ============================================
+// Match events — goals + red cards from ESPN
+// ============================================
+
+export type MatchEvent = {
+  id: string;
+  event_type: "goal" | "red_card";
+  minute: string;             // "21'", "45+2'"
+  minute_value: number;       // לסידור כרונולוגי
+  team: "home" | "away";
+  primary_player: string;     // שם המשער או מקבל הכרטיס
+  assister: string | null;    // רק לשערים
+  is_penalty: boolean;
+  is_own_goal: boolean;
+};
+
+// ============================================
 // Predictions
 // ============================================
 

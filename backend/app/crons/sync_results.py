@@ -174,7 +174,121 @@ def sync_one_match(match: dict, dry_run: bool = False) -> MatchSyncResult:
         except Exception as e:
             logger.warning(f"Kickoff push failed (non-fatal): {e}")
 
+    # === Sync goal/red-card events (Phase 9) ===
+    # רץ גם בלייב — שערים מופיעים תוך 2-3 דק׳. שגיאות לא הורגות את הסנכרון.
+    if new_status in ("live", "finished") and not dry_run:
+        try:
+            _sync_match_events(match)
+        except Exception:
+            logger.exception(f"Failed to sync match events for {match_id} (non-fatal)")
+
     return result
+
+
+# ============================================================
+# Match events sync (Phase 9 — goals + red cards)
+# ============================================================
+
+def _sync_match_events(match: dict) -> dict:
+    """
+    Fetch goals + red cards from ESPN for a match and upsert into match_events.
+    Idempotent via UNIQUE (match_id, espn_event_id).
+    Returns counts; caller may log/ignore.
+    """
+    from app.services import espn
+
+    espn_id = match.get("external_id")
+    if not espn_id:
+        return {"goals": 0, "red_cards": 0, "skipped": "no_external_id"}
+
+    goals, red_cards = espn.fetch_match_events(espn_id)
+    if not goals and not red_cards:
+        return {"goals": 0, "red_cards": 0}
+
+    match_id = match["id"]
+    team_home_name = match["team_home"]
+    team_away_name = match["team_away"]
+
+    rows: list[dict] = []
+    for g in goals:
+        tname = g.get("team_name") or ""
+        side = "home" if tname == team_home_name else "away" if tname == team_away_name else None
+        if side is None:
+            # ESPN team name didn't match either side — skip (probably a name mismatch
+            # we don't want to fail silently in DB)
+            logger.warning(f"match {match_id}: goal team '{tname}' matches neither home nor away")
+            continue
+        rows.append({
+            "match_id": match_id,
+            "event_type": "goal",
+            "minute": g["minute"],
+            "minute_value": g["minute_value"],
+            "team": side,
+            "primary_player": g["scorer"],
+            "primary_player_id": g.get("scorer_id") or None,
+            "assister": g.get("assister"),
+            "assister_id": g.get("assister_id"),
+            "is_penalty": g.get("is_penalty", False),
+            "is_own_goal": g.get("is_own_goal", False),
+            "espn_event_id": g["espn_event_id"],
+        })
+
+    for rc in red_cards:
+        tname = rc.get("team_name") or ""
+        side = "home" if tname == team_home_name else "away" if tname == team_away_name else None
+        if side is None:
+            logger.warning(f"match {match_id}: red-card team '{tname}' matches neither side")
+            continue
+        rows.append({
+            "match_id": match_id,
+            "event_type": "red_card",
+            "minute": rc["minute"],
+            "minute_value": rc["minute_value"],
+            "team": side,
+            "primary_player": rc["player"],
+            "primary_player_id": rc.get("player_id") or None,
+            "assister": None,
+            "assister_id": None,
+            "is_penalty": False,
+            "is_own_goal": False,
+            "espn_event_id": rc["espn_event_id"],
+        })
+
+    if rows:
+        supabase_admin.table("match_events").upsert(
+            rows, on_conflict="match_id,espn_event_id"
+        ).execute()
+
+    return {"goals": len(goals), "red_cards": len(red_cards), "written": len(rows)}
+
+
+def backfill_all_match_events() -> dict:
+    """
+    Manual one-shot: scan all matches with external_id, fetch + upsert events.
+    Used to populate finished matches that are outside the active 2h window.
+    """
+    matches = (
+        supabase_admin.table("matches")
+        .select("id, external_id, team_home, team_away, status")
+        .not_.is_("external_id", "null")
+        .execute()
+    ).data or []
+    counts = {"scanned": 0, "with_events": 0, "total_rows": 0, "errors": 0}
+    for m in matches:
+        if m["status"] == "scheduled":
+            continue  # nothing to fetch for unstarted matches
+        counts["scanned"] += 1
+        try:
+            res = _sync_match_events(m)
+            n = res.get("written", 0) or 0
+            counts["total_rows"] += n
+            if n > 0:
+                counts["with_events"] += 1
+                print(f"  match #{m['id']}: wrote {n} events ({res['goals']} goals, {res['red_cards']} red cards)")
+        except Exception as e:
+            counts["errors"] += 1
+            print(f"  match #{m['id']}: ERROR {e}")
+    return counts
 
 
 def sync_all_active(dry_run: bool = False) -> list[MatchSyncResult]:
@@ -208,6 +322,8 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true", help="Show what would happen, don't write")
     parser.add_argument("--recompute", type=int, metavar="MATCH_ID",
                         help="Recompute scoring for a specific match (idempotent)")
+    parser.add_argument("--backfill", action="store_true",
+                        help="One-shot: fetch goal/red-card events for all matches (outside cron window)")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -219,6 +335,15 @@ def main() -> int:
         print(f"  Total points awarded: {summary['total_points_awarded']}")
         print(f"  Double-down bonuses: {summary['double_down_bonuses']}")
         print(f"  Affected users: {summary['affected_users']}")
+        return 0
+
+    if args.backfill:
+        print("Backfilling match events for all matches with external_id...")
+        counts = backfill_all_match_events()
+        print(f"\nDone. Scanned: {counts['scanned']}, "
+              f"With events: {counts['with_events']}, "
+              f"Total event rows: {counts['total_rows']}, "
+              f"Errors: {counts['errors']}")
         return 0
 
     results = sync_all_active(dry_run=args.dry_run)

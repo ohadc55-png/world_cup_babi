@@ -9,11 +9,11 @@ import { motion } from "framer-motion";
 import {
   ArrowRight, Lock, Zap, Clock, Check, X as XIcon, Minus,
 } from "lucide-react";
-import { useMatch, useMatchPredictions } from "@/hooks/useMatchDetail";
+import { useMatch, useMatchEvents, useMatchPredictions } from "@/hooks/useMatchDetail";
 import { getTeamInfo } from "@/lib/teams";
 import { formatScore, regularTimeDirection } from "@/lib/matchScore";
 import { Logo } from "@/components/layout/Logo";
-import type { MemberPrediction, Match } from "@/types";
+import type { MatchEvent, MemberPrediction, Match } from "@/types";
 
 const STAGE_HE: Record<string, string> = {
   group: "שלב הבתים",
@@ -32,6 +32,7 @@ export function MatchDetail() {
 
   const { data: match, loading: matchLoading } = useMatch(matchId);
   const { data: predictions, loading: predsLoading } = useMatchPredictions(matchId);
+  const { data: events } = useMatchEvents(matchId);
 
   const loading = matchLoading || predsLoading;
 
@@ -79,9 +80,141 @@ export function MatchDetail() {
         {/* Match header */}
         <MatchHeaderCard match={match} />
 
+        {/* Events timeline (live + finished only) */}
+        {(match.status === "live" || match.status === "finished") && (
+          <MatchEventsTimeline match={match} events={events ?? []} />
+        )}
+
         {/* Predictions list */}
         {predictions && <PredictionsList match={match} predictions={predictions} />}
       </main>
+    </div>
+  );
+}
+
+// ============================================================
+// MatchEventsTimeline — שערים + כרטיסים אדומים בעמוד פירוט משחק
+// ============================================================
+
+function MatchEventsTimeline({ match, events }: { match: Match; events: MatchEvent[] }) {
+  const home = getTeamInfo(match.team_home);
+  const away = getTeamInfo(match.team_away);
+  const sorted = [...events].sort((a, b) => a.minute_value - b.minute_value);
+
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, delay: 0.05 }}
+      className="rounded-2xl p-4"
+      style={{
+        background: "linear-gradient(135deg, rgba(20,27,45,0.65), rgba(20,27,45,0.40))",
+        border: "1px solid rgba(255,255,255,0.10)",
+        backdropFilter: "blur(14px)",
+        WebkitBackdropFilter: "blur(14px)",
+      }}
+    >
+      <div className="mb-3 flex items-center justify-between">
+        <span
+          className="text-[10px] font-extrabold uppercase"
+          style={{ color: "#FFD93D", letterSpacing: "0.22em" }}
+        >
+          אירועי משחק
+        </span>
+        <span className="text-[10px] text-[color:var(--color-muted)]">
+          <span className="num font-bold text-white">{sorted.length}</span> סה"כ
+        </span>
+      </div>
+
+      {sorted.length === 0 ? (
+        <p className="py-3 text-center text-[12px] text-[color:var(--color-muted)]">
+          אין שערים עדיין
+        </p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {sorted.map((ev) => (
+            <EventRow key={ev.id} event={ev} home={home} away={away} />
+          ))}
+        </div>
+      )}
+    </motion.section>
+  );
+}
+
+function EventRow({
+  event, home, away,
+}: {
+  event: MatchEvent;
+  home: { flag: string; he: string };
+  away: { flag: string; he: string };
+}) {
+  const isGoal = event.event_type === "goal";
+  const team = event.team === "home" ? home : away;
+  const accent = isGoal ? "#FFD93D" : "#FF7A85";
+
+  return (
+    <div
+      className="flex items-center gap-3 rounded-xl px-3 py-2.5"
+      style={{
+        background: "rgba(20,27,45,0.45)",
+        border: `1px solid ${isGoal ? "rgba(255,217,61,0.18)" : "rgba(230,57,70,0.25)"}`,
+      }}
+    >
+      {/* Minute — large, right side in RTL */}
+      <span
+        className="num shrink-0 text-end"
+        style={{
+          minWidth: 44,
+          fontSize: 17,
+          fontWeight: 800,
+          color: accent,
+          letterSpacing: "-0.02em",
+        }}
+      >
+        {event.minute}
+      </span>
+
+      {/* Icon */}
+      <span className="shrink-0 text-[18px]">{isGoal ? "⚽" : "🟥"}</span>
+
+      {/* Flag */}
+      <span className="shrink-0 text-[18px]">{team.flag}</span>
+
+      {/* Player + meta */}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[13px] font-bold text-white">
+          {event.primary_player}
+          {isGoal && event.is_penalty && (
+            <span
+              className="ms-1.5 rounded px-1.5 py-0.5 text-[9px] font-extrabold"
+              style={{
+                color: "#FFD93D",
+                border: "1px solid rgba(255,217,61,0.50)",
+                background: "rgba(255,217,61,0.10)",
+              }}
+            >
+              פנדל
+            </span>
+          )}
+          {isGoal && event.is_own_goal && (
+            <span
+              className="ms-1.5 rounded px-1.5 py-0.5 text-[9px] font-extrabold"
+              style={{
+                color: "#FF7A85",
+                border: "1px solid rgba(255,122,133,0.55)",
+                background: "rgba(230,57,70,0.10)",
+              }}
+            >
+              שער עצמי
+            </span>
+          )}
+        </p>
+        {isGoal && event.assister && (
+          <p className="mt-0.5 text-[10.5px] text-[color:var(--color-muted)]">
+            בישול: <span className="font-bold text-white/80">{event.assister}</span>
+          </p>
+        )}
+      </div>
     </div>
   );
 }

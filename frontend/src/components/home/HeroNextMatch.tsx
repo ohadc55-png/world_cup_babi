@@ -2,6 +2,7 @@
 // פורט מ-home_hero_v4.html. כל ה-CSS שלא ניתן ל-Tailwind טהור נמצא ב-inline style.
 
 import { ArrowLeft } from "lucide-react";
+import type { MatchEvent } from "@/types";
 
 type HeroNextMatchProps = {
   teamHome: { flag: string; nameHe: string };
@@ -18,6 +19,9 @@ type HeroNextMatchProps = {
   liveScore?: { home: number; away: number };
   // דקה נוכחית מ-ESPN ("67'", "45+2'", "HT"). אופציונלי — מוצג רק במצב live.
   liveClock?: string | null;
+  // אירועי משחק (שערים + כרטיסים אדומים) מסודרים כרונולוגית.
+  // מוצגים כטיימליין דחוסה מתחת לתוצאה במצב LIVE.
+  goalEvents?: MatchEvent[];
 };
 
 function formatCountdown(totalSeconds: number): { d: string; h: string; m: string; s: string } {
@@ -45,6 +49,7 @@ export function HeroNextMatch({
   onPredictClick,
   liveScore,
   liveClock,
+  goalEvents,
 }: HeroNextMatchProps) {
   const isLive = liveScore !== undefined;
   const { d, h, m, s } = formatCountdown(countdownSeconds);
@@ -204,6 +209,9 @@ export function HeroNextMatch({
                 תוצאה חיה
               </p>
             )}
+            {goalEvents && goalEvents.length > 0 && (
+              <EventsTicker events={goalEvents} />
+            )}
           </div>
         ) : (
           <div className="text-center" style={{ direction: "ltr" }}>
@@ -323,4 +331,69 @@ function ScoreDigit({ value }: { value: number }) {
       {value}
     </span>
   );
+}
+
+// ============================================================
+// EventsTicker — שורה דחוסה של אירועים (שערים + כרטיסים אדומים)
+// מוצגת מתחת לדקה במצב LIVE. מוגבל ל-4 אירועים אחרונים.
+// ============================================================
+function EventsTicker({ events }: { events: MatchEvent[] }) {
+  // מסדרים כרונולוגית ולוקחים 4 אחרונים (התצוגה בהירו צרה)
+  const recent = [...events].sort((a, b) => a.minute_value - b.minute_value).slice(-4);
+
+  return (
+    <div className="mt-3 flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 px-2">
+      {recent.map((ev) => (
+        <EventChip key={ev.id} event={ev} />
+      ))}
+    </div>
+  );
+}
+
+function EventChip({ event }: { event: MatchEvent }) {
+  const isGoal = event.event_type === "goal";
+  const icon = isGoal ? "⚽" : "🟥";
+  const player = lastNameOnly(event.primary_player);
+  const assister = event.assister ? lastNameOnly(event.assister) : null;
+
+  return (
+    <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-white/80">
+      <span className="text-[12px]">{icon}</span>
+      <span className="font-bold text-white">{player}</span>
+      <span className="num text-white/55">{event.minute}</span>
+      {isGoal && event.is_penalty && (
+        <span
+          className="rounded-sm px-1 text-[8.5px] font-extrabold"
+          style={{
+            color: "#FFD93D",
+            border: "1px solid rgba(255,217,61,0.50)",
+            background: "rgba(255,217,61,0.10)",
+          }}
+        >
+          פ׳
+        </span>
+      )}
+      {isGoal && event.is_own_goal && (
+        <span
+          className="rounded-sm px-1 text-[8.5px] font-extrabold"
+          style={{
+            color: "#FF7A85",
+            border: "1px solid rgba(255,122,133,0.55)",
+            background: "rgba(230,57,70,0.10)",
+          }}
+        >
+          ש״ע
+        </span>
+      )}
+      {assister && (
+        <span className="text-white/45">({assister})</span>
+      )}
+    </span>
+  );
+}
+
+// "Cyle Larin" → "Larin" — מקצר שמות לטיימליין דחוסה ב-Hero.
+function lastNameOnly(fullName: string): string {
+  const parts = fullName.trim().split(/\s+/);
+  return parts.length > 1 ? parts[parts.length - 1] : fullName;
 }

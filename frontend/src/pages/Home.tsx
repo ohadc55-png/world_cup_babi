@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 import { Bell, ChevronLeft, UserPlus, Sparkles } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useMatchesToday, useNextMatch } from "@/hooks/useMatches";
+import { useMatchEvents } from "@/hooks/useMatchDetail";
 import { useMyGame } from "@/hooks/useGame";
 import { useLeaderboard, useMyScore } from "@/hooks/useLeaderboard";
 import { getTeamInfo } from "@/lib/teams";
@@ -100,6 +101,10 @@ export function Home() {
   const { data: myGame } = useMyGame();
   const { data: myScore } = useMyScore();
   const { data: leaderboard, loading: leaderboardLoading } = useLeaderboard();
+  // אירועי משחק (שערים/כרטיסים אדומים) — רק כשמשחק חי
+  const { data: liveEvents } = useMatchEvents(
+    nextMatch?.status === "live" ? nextMatch.id : null,
+  );
   const [inviteOpen, setInviteOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -297,6 +302,7 @@ export function Home() {
               : undefined
           }
           liveClock={nextMatch.status === "live" ? nextMatch.display_clock : undefined}
+          goalEvents={nextMatch.status === "live" ? liveEvents ?? undefined : undefined}
         />
       )}
 

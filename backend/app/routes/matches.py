@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from app.core.auth import AuthenticatedUser, get_current_user
 from app.db.supabase import supabase_admin
-from app.schemas.match import MatchOut, Stage
+from app.schemas.match import MatchEventOut, MatchOut, Stage
 
 router = APIRouter(prefix="/api/matches", tags=["matches"])
 
@@ -118,6 +118,22 @@ def get_match(
     if not result or not result.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Match not found")
     return MatchOut(**result.data)
+
+
+@router.get("/{match_id}/events", response_model=list[MatchEventOut])
+def list_match_events(
+    match_id: int,
+    _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+) -> list[MatchEventOut]:
+    """שערים + כרטיסים אדומים של המשחק, מסודרים כרונולוגית. מסוננים מ-ESPN ע"י sync_results."""
+    rows = (
+        supabase_admin.table("match_events")
+        .select("*")
+        .eq("match_id", match_id)
+        .order("minute_value")
+        .execute()
+    ).data or []
+    return [MatchEventOut(**r) for r in rows]
 
 
 # ============================================================

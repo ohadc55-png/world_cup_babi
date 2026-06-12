@@ -193,3 +193,158 @@ def fetch_scoreboard_for_date_range(
         results.extend(fetch_scoreboard(current))
         current = date.fromordinal(current.toordinal() + 1)
     return results
+
+
+# ============================================================
+# Player events — goals + red cards (Phase 9)
+# ============================================================
+
+class EspnGoalEvent(TypedDict, total=False):
+    espn_event_id: str        # synthetic stable id (minute_value + scorer_id)
+    minute: str               # "21'", "45+2'"
+    minute_value: int         # שניות מתחילת המשחק לסידור
+    scorer: str               # "Cyle Larin"
+    scorer_id: str            # ESPN athlete id (string)
+    assister: Optional[str]
+    assister_id: Optional[str]
+    team_name: str            # "Canada" — caller יתרגם ל-home/away
+    is_penalty: bool
+    is_own_goal: bool
+
+
+class EspnRedCardEvent(TypedDict, total=False):
+    espn_event_id: str        # ESPN keyEvent.id (string)
+    minute: str
+    minute_value: int
+    player: str
+    player_id: str
+    team_name: str
+
+
+def _safe_int_from_clock(clock: dict | None) -> int:
+    """Convert clock.value (seconds) to int. 0 if missing/invalid."""
+    if not clock:
+        return 0
+    v = clock.get("value")
+    try:
+        return int(v) if v is not None else 0
+    except (TypeError, ValueError):
+        return 0
+
+
+def _parse_goal(detail: dict) -> Optional[EspnGoalEvent]:
+    """
+    Parse a scoring play from header.competitions[0].details[].
+    Convention: participants[0]=scorer, participants[1]=assister.
+    """
+    if not detail.get("scoringPlay"):
+        return None
+    participants = detail.get("participants") or []
+    if not participants:
+        return None
+    scorer_athlete = (participants[0] or {}).get("athlete") or {}
+    scorer = scorer_athlete.get("displayName") or ""
+    scorer_id = str(scorer_athlete.get("id") or "")
+    if not scorer:
+        return None
+
+    assister: Optional[str] = None
+    assister_id: Optional[str] = None
+    if len(participants) > 1:
+        ass_ath = (participants[1] or {}).get("athlete") or {}
+        assister = ass_ath.get("displayName") or None
+        ass_id_raw = ass_ath.get("id")
+        assister_id = str(ass_id_raw) if ass_id_raw else None
+
+    clock = detail.get("clock") or {}
+    minute_value = _safe_int_from_clock(clock)
+    minute_display = clock.get("displayValue") or f"{minute_value // 60}'"
+
+    # Synthetic stable id — unique within a single match (sufficient for the
+    # (match_id, espn_event_id) DB constraint). Same player scoring twice at the
+    # exact same second is physically impossible.
+    synthetic_id = f"goal-{minute_value:05d}-{scorer_id or scorer}"
+
+    return EspnGoalEvent(
+        espn_event_id=synthetic_id,
+        minute=minute_display,
+        minute_value=minute_value,
+        scorer=scorer,
+        scorer_id=scorer_id,
+        assister=assister,
+        assister_id=assister_id,
+        team_name=(detail.get("team") or {}).get("displayName") or "",
+        is_penalty=bool(detail.get("penaltyKick")),
+        is_own_goal=bool(detail.get("ownGoal")),
+    )
+
+
+def _parse_red_card(event: dict) -> Optional[EspnRedCardEvent]:
+    """Parse a red card from keyEvents[]."""
+    if (event.get("type") or {}).get("text") != "Red Card":
+        return None
+    participants = event.get("participants") or []
+    if not participants:
+        return None
+    ath = (participants[0] or {}).get("athlete") or {}
+    player = ath.get("displayName") or ""
+    player_id = str(ath.get("id") or "")
+    if not player:
+        return None
+
+    clock = event.get("clock") or {}
+    minute_value = _safe_int_from_clock(clock)
+    minute_display = clock.get("displayValue") or f"{minute_value // 60}'"
+
+    # Prefer real ESPN keyEvent id; fall back to synthetic if missing
+    espn_id = str(event.get("id") or "") or f"redcard-{minute_value:05d}-{player_id or player}"
+
+    return EspnRedCardEvent(
+        espn_event_id=espn_id,
+        minute=minute_display,
+        minute_value=minute_value,
+        player=player,
+        player_id=player_id,
+        team_name=(event.get("team") or {}).get("displayName") or "",
+    )
+
+
+def fetch_match_events(espn_id: str) -> tuple[list[EspnGoalEvent], list[EspnRedCardEvent]]:
+    """
+    שולף summary ומחזיר (goals, red_cards).
+    Goals מ-header.competitions[0].details[] לפי scoringPlay=True.
+    Red cards מ-keyEvents[] לפי type.text == 'Red Card'.
+    מחזיר ([], []) אם ה-fetch נכשל. שגיאות parse של פלאיי בודד נבלעות בלי
+    להפיל את שאר הרשימה.
+    """
+    url = ESPN_BASE + "/summary"
+    try:
+        with httpx.Client(timeout=TIMEOUT) as client:
+            r = client.get(url, params={"event": espn_id})
+            r.raise_for_status()
+            data = r.json()
+    except httpx.HTTPError as e:
+        logger.error(f"ESPN summary fetch failed for events {espn_id}: {e}")
+        return ([], [])
+
+    goals: list[EspnGoalEvent] = []
+    red_cards: list[EspnRedCardEvent] = []
+
+    competition = (data.get("header") or {}).get("competitions", [{}])[0]
+    for detail in competition.get("details", []) or []:
+        try:
+            g = _parse_goal(detail)
+            if g:
+                goals.append(g)
+        except Exception:
+            logger.exception(f"Failed to parse goal play in {espn_id}")
+
+    for ev in data.get("keyEvents", []) or []:
+        try:
+            rc = _parse_red_card(ev)
+            if rc:
+                red_cards.append(rc)
+        except Exception:
+            logger.exception(f"Failed to parse keyEvent in {espn_id}")
+
+    return (goals, red_cards)

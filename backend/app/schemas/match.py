@@ -33,3 +33,16 @@ class MatchOut(BaseModel):
     predictions_locked: bool
     display_clock: str | None = None   # "67'", "45+2'", "HT", "ET 105'" — רק במשחק חי
     updated_at: datetime
+
+
+class MatchEventOut(BaseModel):
+    """אירוע משחק יחיד — שער או כרטיס אדום מ-ESPN."""
+    id: str
+    event_type: Literal["goal", "red_card"]
+    minute: str                    # "21'", "45+2'"
+    minute_value: int              # לסידור כרונולוגי
+    team: Literal["home", "away"]
+    primary_player: str            # שם המשער או מקבל הכרטיס
+    assister: str | None = None    # רק לשערים
+    is_penalty: bool = False
+    is_own_goal: bool = False
