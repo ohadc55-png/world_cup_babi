@@ -17,6 +17,7 @@ import { formatScore } from "@/lib/matchScore";
 import { Logo } from "@/components/layout/Logo";
 import { PageBackground } from "@/components/layout/PageBackground";
 import { GroupStandingsCard } from "@/components/groups/GroupStandingsTable";
+import { TopAthletesTable } from "@/components/tournament/TopAthletesTable";
 import type { Match, Stage } from "@/types";
 
 const COLUMNS: { stage: Stage; title: string; count: number }[] = [
@@ -27,8 +28,11 @@ const COLUMNS: { stage: Stage; title: string; count: number }[] = [
   { stage: "final", title: "גמר", count: 1 },
 ];
 
-type TournamentTab = "groups" | "bracket";
-const VALID_TT: TournamentTab[] = ["groups", "bracket"];
+type TournamentTab = "groups" | "bracket" | "top";
+const VALID_TT: TournamentTab[] = ["groups", "bracket", "top"];
+
+type TopKind = "scorers" | "assisters";
+const VALID_TOP: TopKind[] = ["scorers", "assisters"];
 
 export function Bracket() {
   const { data: allMatches, loading: matchesLoading } = useAllMatches();
@@ -47,7 +51,16 @@ export function Bracket() {
     ? tabParam
     : (knockoutStarted ? "bracket" : "groups");
   function setActiveTab(t: TournamentTab) {
-    setSearchParams({ tab: t }, { replace: false });
+    // שומרים גם kind כשעוברים ל-top כדי שהטוגל יזכור היכן היינו
+    const next: Record<string, string> = { tab: t };
+    if (t === "top") next.kind = (searchParams.get("kind") as TopKind) || "scorers";
+    setSearchParams(next, { replace: false });
+  }
+
+  const kindParam = searchParams.get("kind") as TopKind | null;
+  const activeTopKind: TopKind = kindParam && VALID_TOP.includes(kindParam) ? kindParam : "scorers";
+  function setTopKind(k: TopKind) {
+    setSearchParams({ tab: "top", kind: k }, { replace: false });
   }
 
   // קבץ משחקים לפי שלב (לטאב פלייאוף)
@@ -95,10 +108,11 @@ export function Bracket() {
 
         {/* Sub-tabs */}
         <div className="px-5 pb-2 pt-1">
-          <div className="grid grid-cols-2 gap-1.5">
+          <div className="grid grid-cols-3 gap-1.5">
             {([
               { key: "groups", label: "בתים" },
               { key: "bracket", label: "פלייאוף" },
+              { key: "top", label: "מצטיינים" },
             ] as { key: TournamentTab; label: string }[]).map(({ key, label }) => {
               const isActive = activeTab === key;
               return (
@@ -211,6 +225,43 @@ export function Bracket() {
             </>
           )}
         </>
+      )}
+
+      {/* === TOP TAB (מצטיינים) === */}
+      {activeTab === "top" && (
+        <div className="px-5 pt-3 pb-4">
+          {/* Toggle בין מלך שערים למלך בישולים */}
+          <div className="mb-4 grid grid-cols-2 gap-1.5">
+            {([
+              { key: "scorers", label: "מלך שערים" },
+              { key: "assisters", label: "מלך בישולים" },
+            ] as { key: TopKind; label: string }[]).map(({ key, label }) => {
+              const isActive = activeTopKind === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => setTopKind(key)}
+                  className="rounded-full px-3 py-2 no-tap transition-all"
+                  style={{
+                    background: isActive
+                      ? "linear-gradient(135deg, rgba(255,217,61,0.18), rgba(255,170,0,0.06))"
+                      : "rgba(20,27,45,0.45)",
+                    border: `1.5px solid ${isActive ? "rgba(255,217,61,0.55)" : "rgba(255,255,255,0.10)"}`,
+                  }}
+                >
+                  <span
+                    className={`text-[12px] font-extrabold ${isActive ? "text-white" : "text-white/85"}`}
+                    style={isActive ? { color: "#FFD93D" } : undefined}
+                  >
+                    {label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <TopAthletesTable category={activeTopKind} />
+        </div>
       )}
       </div>
     </div>

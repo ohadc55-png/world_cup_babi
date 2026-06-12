@@ -46,3 +46,13 @@ class MatchEventOut(BaseModel):
     assister: str | None = None    # רק לשערים
     is_penalty: bool = False
     is_own_goal: bool = False
+
+
+class PlayerStatOut(BaseModel):
+    """שורת מצטיין יחיד בטבלת מלך שערים/מלך בישולים."""
+    rank: int
+    player_name: str
+    team_name: str | None = None
+    matches: int
+    value: int                     # goals או assists
+    display_value: str | None = None  # "Matches: 5, Goals: 7"

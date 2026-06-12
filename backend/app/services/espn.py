@@ -309,6 +309,95 @@ def _parse_red_card(event: dict) -> Optional[EspnRedCardEvent]:
     )
 
 
+# ============================================================
+# Tournament-wide leaders (Phase 9.B) — goals + assists rankings
+# ============================================================
+
+class EspnLeader(TypedDict, total=False):
+    player_name: str
+    player_id: str
+    team_name: str
+    matches: int
+    value: int
+    display_value: str
+
+
+def _parse_leader(entry: dict) -> Optional[EspnLeader]:
+    """Parse a single leader row from /statistics stats[].leaders[]."""
+    athlete = entry.get("athlete") or {}
+    name = athlete.get("displayName") or ""
+    if not name:
+        return None
+    try:
+        value = int(entry.get("value") or 0)
+    except (TypeError, ValueError):
+        value = 0
+
+    # Try to extract match count from displayValue like "Matches: 5, Goals: 7"
+    matches = 0
+    display = entry.get("displayValue") or ""
+    if display:
+        import re
+        m = re.search(r"Matches:\s*(\d+)", display)
+        if m:
+            try:
+                matches = int(m.group(1))
+            except ValueError:
+                matches = 0
+
+    # ב-statistics endpoint ה-team מקונן בתוך athlete (לא ברמת הentry).
+    team_name = (athlete.get("team") or {}).get("displayName") \
+        or (entry.get("team") or {}).get("displayName") \
+        or ""
+
+    return EspnLeader(
+        player_name=name,
+        player_id=str(athlete.get("id") or ""),
+        team_name=team_name,
+        matches=matches,
+        value=value,
+        display_value=display,
+    )
+
+
+def fetch_tournament_leaders() -> dict[str, list[EspnLeader]]:
+    """
+    קורא ל-/statistics ומחזיר {'goals': [...], 'assists': [...]}.
+    כל list מסודר לפי value יורד, top 10 בלבד.
+    מחזיר ריק אם ה-fetch נכשל.
+    """
+    url = ESPN_BASE + "/statistics"
+    try:
+        with httpx.Client(timeout=TIMEOUT) as client:
+            r = client.get(url)
+            r.raise_for_status()
+            data = r.json()
+    except httpx.HTTPError as e:
+        logger.error(f"ESPN statistics fetch failed: {e}")
+        return {"goals": [], "assists": []}
+
+    result: dict[str, list[EspnLeader]] = {"goals": [], "assists": []}
+    for category in data.get("stats", []) or []:
+        cat_name = category.get("name") or ""
+        if cat_name == "goalsLeaders":
+            key = "goals"
+        elif cat_name == "assistsLeaders":
+            key = "assists"
+        else:
+            continue
+        for entry in category.get("leaders", []) or []:
+            try:
+                ld = _parse_leader(entry)
+                if ld and ld.get("value", 0) > 0:
+                    result[key].append(ld)
+            except Exception:
+                logger.exception(f"Failed to parse leader in {cat_name}")
+        # ESPN already sorts by value desc; take top 10
+        result[key] = result[key][:10]
+
+    return result
+
+
 def fetch_match_events(espn_id: str) -> tuple[list[EspnGoalEvent], list[EspnRedCardEvent]]:
     """
     שולף summary ומחזיר (goals, red_cards).

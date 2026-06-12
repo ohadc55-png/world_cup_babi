@@ -109,6 +109,19 @@ export type MatchEvent = {
 };
 
 // ============================================
+// Tournament top athletes — מלך שערים + מלך בישולים
+// ============================================
+
+export type PlayerStat = {
+  rank: number;
+  player_name: string;
+  team_name: string | null;
+  matches: number;
+  value: number;                  // goals או assists
+  display_value: string | null;   // "Matches: 5, Goals: 7"
+};
+
+// ============================================
 // Predictions
 // ============================================
 

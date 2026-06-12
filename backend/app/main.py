@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.crons.lock_predictions import lock_predictions_now
+from app.crons.sync_player_stats import sync_player_stats_now
 from app.crons.sync_results import sync_all_active
 from app.routes import admin as admin_routes
 from app.routes import auth as auth_routes
@@ -19,6 +20,7 @@ from app.routes import push as push_routes
 from app.routes import users as users_routes
 from app.routes import groups as groups_routes
 from app.routes import agent as agent_routes
+from app.routes import tournament as tournament_routes
 
 logger = logging.getLogger(__name__)
 
@@ -54,8 +56,9 @@ async def lifespan(_app: FastAPI):
         tasks = [
             asyncio.create_task(_every(120, "sync_results", sync_all_active)),
             asyncio.create_task(_every(300, "lock_predictions", lock_predictions_now)),
+            asyncio.create_task(_every(3600, "sync_player_stats", sync_player_stats_now)),
         ]
-        logger.info("[scheduler] started 2 background jobs")
+        logger.info("[scheduler] started 3 background jobs")
     else:
         logger.info(f"[scheduler] disabled (ENVIRONMENT={settings.ENVIRONMENT})")
     try:
@@ -96,6 +99,7 @@ app.include_router(push_routes.router)
 app.include_router(users_routes.router)
 app.include_router(groups_routes.router)
 app.include_router(agent_routes.router)
+app.include_router(tournament_routes.router)
 
 
 @app.get("/health", tags=["meta"])
