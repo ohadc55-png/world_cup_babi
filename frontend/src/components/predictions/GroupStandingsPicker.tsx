@@ -13,6 +13,7 @@ import { getTeamInfo } from "@/lib/teams";
 import { useMyGroupPredictions } from "@/hooks/usePredictions";
 import { useMyGame } from "@/hooks/useGame";
 import { useAllTeams } from "@/hooks/useTeams";
+import { useAuth } from "@/hooks/useAuth";
 import type { GroupPrediction } from "@/types";
 
 // תוויות מיקום בעברית + צבע מדליה
@@ -27,9 +28,12 @@ export function GroupStandingsPicker() {
   const { data: teamsData, loading: teamsLoading } = useAllTeams();
   const { byGroup, loading: predLoading, setLocal } = useMyGroupPredictions();
   const { data: myGame } = useMyGame();
+  const { user } = useAuth();
   const [editingGroup, setEditingGroup] = useState<string | null>(null);
 
-  const tournamentStarted = !!myGame?.tournament_has_started;
+  // משתמש ב-Grace period (whitelist + deadline) — עוקף את נעילת תחילת הטורניר
+  const inGrace = !!user?.longterm_grace_active;
+  const tournamentStarted = !!myGame?.tournament_has_started && !inGrace;
 
   if (teamsLoading || predLoading) {
     return <p className="py-12 text-center text-sm text-[color:var(--color-muted)]">טוען...</p>;

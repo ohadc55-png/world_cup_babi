@@ -75,6 +75,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       game_id: auth.game_id,
       avatar_url: auth.avatar_url,
       created_at: null,
+      // ייטען בקריאה הבאה ל-/auth/me — בהתחברות עצמה עוד לא יודעים
+      longterm_grace_active: false,
     });
     setNetworkError(false);
   }

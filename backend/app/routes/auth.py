@@ -10,12 +10,26 @@ Flow (multi-game model — 2026-05-23):
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 
 from app.core.auth import AuthenticatedUser, create_token, get_current_user
 from app.core.constants import ROUND_KEYS
+from app.core.grace import user_in_grace_period
 from app.core.security import hash_pin, verify_pin
 from app.db.supabase import supabase_admin
 from app.schemas.user import AuthSuccessResponse, LoginRequest, RegisterRequest
+
+
+class MeResponse(BaseModel):
+    """תגובת /api/auth/me — משתמש מחובר + דגלים תלויי-בקשה."""
+    id: str
+    username: str
+    is_admin: bool
+    game_id: str | None = None
+    avatar_url: str | None = None
+    created_at: str | None = None
+    # True אם המשתמש בחלון חסד שמאפשר עריכת ניחושי טווח-ארוך אחרי תחילת הטורניר
+    longterm_grace_active: bool = False
 
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -99,6 +113,14 @@ def login(payload: LoginRequest) -> AuthSuccessResponse:
     )
 
 
-@router.get("/me", response_model=AuthenticatedUser)
-def me(user: AuthenticatedUser = Depends(get_current_user)) -> AuthenticatedUser:
-    return user
+@router.get("/me", response_model=MeResponse)
+def me(user: AuthenticatedUser = Depends(get_current_user)) -> MeResponse:
+    return MeResponse(
+        id=user.id,
+        username=user.username,
+        is_admin=user.is_admin,
+        game_id=user.game_id,
+        avatar_url=user.avatar_url,
+        created_at=user.created_at,
+        longterm_grace_active=user_in_grace_period(user.id),
+    )

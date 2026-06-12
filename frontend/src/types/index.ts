@@ -17,6 +17,8 @@ export type CurrentUser = {
   game_id: string | null;
   avatar_url: string | null;
   created_at: string | null;
+  // true אם המשתמש בחלון חסד שמאפשר עריכת ניחושי טווח-ארוך אחרי תחילת הטורניר
+  longterm_grace_active: boolean;
 };
 
 // ============================================
