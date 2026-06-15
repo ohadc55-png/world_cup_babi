@@ -231,7 +231,7 @@ export function MatchPredictionModal({
         {/* החיתוך מינימלי (~20px מכל צד). חשיפה 65% להקלת קריאות הטקסט. */}
         <div className="pointer-events-none absolute inset-0" aria-hidden="true">
           <img
-            src="/img/wc7.png"
+            src="/img/wc7.webp"
             alt=""
             className="absolute inset-0 h-full w-full object-cover"
             style={{

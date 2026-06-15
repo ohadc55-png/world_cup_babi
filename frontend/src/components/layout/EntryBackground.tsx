@@ -13,7 +13,7 @@ export function EntryBackground() {
     <>
       {/* תמונת רקע */}
       <img
-        src="/img/login.png"
+        src="/img/login.webp"
         alt=""
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 h-full w-full object-cover"

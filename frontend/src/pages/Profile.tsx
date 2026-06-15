@@ -78,7 +78,7 @@ export function Profile() {
 
   return (
     <div className="relative min-h-dvh pb-24" style={{ background: "var(--color-bg)" }}>
-      <PageBackground src="/img/wc7.png" intensity="balanced" />
+      <PageBackground src="/img/wc7.webp" intensity="balanced" />
       <div className="relative z-10">
       {/* === Header === */}
       <header

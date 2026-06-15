@@ -47,7 +47,7 @@ export function Predictions() {
         className="pointer-events-none fixed inset-0 z-0"
         aria-hidden="true"
         style={{
-          backgroundImage: "url(/img/game.png)",
+          backgroundImage: "url(/img/game.webp)",
           backgroundSize: "cover",
           backgroundPosition: "center top",
           backgroundRepeat: "no-repeat",
