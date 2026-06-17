@@ -1,8 +1,8 @@
 // hooks לטבלאות מצטייני הטורניר (מלך שערים + מלך בישולים).
 //
-// אין polling אקטיבי — ה-server מעדכן כל שעה ממילא. עושים fetch אחד
-// על mount + רענון נוסף ב-visibilitychange כדי שמשתמשים שחוזרים ללשונית
-// יראו את הנתונים העדכניים.
+// ה-server מעדכן את הטבלאות פעם בשעה דרך הקרון. כדי שמשתמש שמסתכל ברצף
+// על המסך יקבל עדכון אחרי שהקרון רץ — polling רך כל 10 דקות. גם
+// visibilitychange עושה fetch כשמשתמש חוזר לטאב.
 
 import { useEffect, useState } from "react";
 import { api, ApiException } from "@/lib/api";
@@ -13,6 +13,8 @@ type HookResult<T> = {
   loading: boolean;
   error: string | null;
 };
+
+const POLL_INTERVAL_MS = 10 * 60 * 1000; // 10 דקות
 
 function usePlayerStatsList(endpoint: string): HookResult<PlayerStat[]> {
   const [data, setData] = useState<PlayerStat[] | null>(null);
@@ -43,10 +45,12 @@ function usePlayerStatsList(endpoint: string): HookResult<PlayerStat[]> {
     }
 
     fetchOnce();
+    const timer = window.setInterval(maybeRefresh, POLL_INTERVAL_MS);
     document.addEventListener("visibilitychange", maybeRefresh);
 
     return () => {
       cancelled = true;
+      window.clearInterval(timer);
       document.removeEventListener("visibilitychange", maybeRefresh);
     };
   }, [endpoint]);

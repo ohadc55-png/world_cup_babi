@@ -74,6 +74,10 @@ export async function api<T = unknown>(path: string, options: ApiOptions = {}): 
     method,
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
+    // ה-API שלנו מחזיר נתונים שמתעדכנים תכופות (תוצאות חיות, שערים, leaderboard).
+    // "no-cache" שולח את הבקשה לרשת ומאלץ revalidation, מונע הצגת נתונים ישנים
+    // ב-PWA אחרי שה-DB התעדכן בקרון.
+    cache: "no-cache",
   });
 
   if (!response.ok) {

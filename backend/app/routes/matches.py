@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import date, datetime, time, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel
 
 from app.core.auth import AuthenticatedUser, get_current_user
@@ -122,10 +122,13 @@ def get_match(
 
 @router.get("/{match_id}/events", response_model=list[MatchEventOut])
 def list_match_events(
+    response: Response,
     match_id: int,
     _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
 ) -> list[MatchEventOut]:
     """שערים + כרטיסים אדומים של המשחק, מסודרים כרונולוגית. מסוננים מ-ESPN ע"י sync_results."""
+    # האירועים מתעדכנים כל 2 דקות מ-ESPN; no-cache מבטיח שהקליינט יראה תמיד טרי.
+    response.headers["Cache-Control"] = "no-cache, must-revalidate"
     rows = (
         supabase_admin.table("match_events")
         .select("*")
