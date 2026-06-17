@@ -196,6 +196,7 @@ ESPN_TO_DB_TEAM_NAME = {
     "Bosnia-Herzegovina": "Bosnia & Herzegovina",
     "United States": "USA",   # ESPN sometimes uses this for USMNT
     "USA": "USA",
+    "Congo DR": "DR Congo",   # POR v DR Congo (#61): ESPN flipped the word order
 }
 
 
