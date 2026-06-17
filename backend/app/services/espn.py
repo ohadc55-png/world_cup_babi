@@ -260,10 +260,10 @@ def _parse_goal(detail: dict) -> Optional[EspnGoalEvent]:
     minute_value = _safe_int_from_clock(clock)
     minute_display = clock.get("displayValue") or f"{minute_value // 60}'"
 
-    # Synthetic stable id — unique within a single match (sufficient for the
-    # (match_id, espn_event_id) DB constraint). Same player scoring twice at the
-    # exact same second is physically impossible.
-    synthetic_id = f"goal-{minute_value:05d}-{scorer_id or scorer}"
+    # Stable id — must NOT change between sync runs. clock.value drifts by ±1s
+    # between ESPN snapshots, so we key on the displayed minute (e.g. "17'",
+    # "45+2'") which ESPN reports identically each call.
+    synthetic_id = f"goal-{minute_display}-{scorer_id or scorer}"
 
     return EspnGoalEvent(
         espn_event_id=synthetic_id,
@@ -296,8 +296,9 @@ def _parse_red_card(event: dict) -> Optional[EspnRedCardEvent]:
     minute_value = _safe_int_from_clock(clock)
     minute_display = clock.get("displayValue") or f"{minute_value // 60}'"
 
-    # Prefer real ESPN keyEvent id; fall back to synthetic if missing
-    espn_id = str(event.get("id") or "") or f"redcard-{minute_value:05d}-{player_id or player}"
+    # Prefer real ESPN keyEvent id; fall back to minute-keyed synthetic so the
+    # id stays stable across syncs even when clock.value drifts.
+    espn_id = str(event.get("id") or "") or f"redcard-{minute_display}-{player_id or player}"
 
     return EspnRedCardEvent(
         espn_event_id=espn_id,
