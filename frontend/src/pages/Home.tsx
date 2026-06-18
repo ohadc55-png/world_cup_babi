@@ -19,6 +19,36 @@ import { MatchCard, type MatchCardProps } from "@/components/home/MatchCard";
 import { InviteSheet } from "@/components/game/InviteSheet";
 import { PushOptInBanner } from "@/components/home/PushOptInBanner";
 
+// ניווט מ-Home → Predictions/Match-detail בלחיצה על MatchCard של היום.
+// משחק נעול/חי/נגמר → /match/{id} (תצוגת פרטים).
+// משחק פתוח לניחוש → /predictions עם פרמטרים שגורמים למודאל הניחוש להיפתח אוטומטית
+// בעמוד הניחושים (תאב/sub התואמים + ?match=ID).
+function handleTodayMatchClick(
+  m: Match,
+  navigate: ReturnType<typeof useNavigate>,
+): void {
+  if (m.predictions_locked || m.status === "live" || m.status === "finished") {
+    navigate(`/match/${m.id}`);
+    return;
+  }
+  if (m.stage === "group") {
+    const round = m.group_round ?? 1;
+    navigate(`/predictions?tab=matches&sub=${round}&match=${m.id}`);
+    return;
+  }
+  const knockoutSub: Record<Match["stage"], string> = {
+    group: "r32",                  // לא ייקרא — נחסם למעלה
+    r32: "r32",
+    r16: "r16",
+    qf: "qf",
+    sf: "sf",
+    third_place: "final_combined",
+    final: "final_combined",
+  };
+  const sub = knockoutSub[m.stage] ?? "r32";
+  navigate(`/predictions?tab=knockout&sub=${sub}&match=${m.id}`);
+}
+
 // תרגום שלב לעברית
 function stageHe(stage: Match["stage"]): string {
   const map: Record<string, string> = {
@@ -338,22 +368,13 @@ export function Home() {
           )}
           {!todayLoading && todayItems.length > 0 && (
             <div className="flex flex-col gap-2.5">
-              {todayItems.map(({ match: original, card }) => {
-                // לחיצה: רק אם המשחק נעול/חי/סיים -> ניווט לדף פרטי המשחק.
-                const clickable =
-                  original.predictions_locked ||
-                  original.status === "live" ||
-                  original.status === "finished";
-                return (
-                  <MatchCard
-                    key={original.id}
-                    {...card}
-                    onClick={
-                      clickable ? () => navigate(`/match/${original.id}`) : undefined
-                    }
-                  />
-                );
-              })}
+              {todayItems.map(({ match: original, card }) => (
+                <MatchCard
+                  key={original.id}
+                  {...card}
+                  onClick={() => handleTodayMatchClick(original, navigate)}
+                />
+              ))}
             </div>
           )}
         </section>

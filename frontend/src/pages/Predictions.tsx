@@ -178,6 +178,26 @@ function MatchesTab() {
     };
   }, []);
 
+  // Deep-link מ-Home: אם נכנסנו עם ?match=ID, נפתח את מודאל הניחוש לאותו משחק
+  // אוטומטית (אחרי שהמשחקים נטענו). מנקים את הפרמטר כדי שרענון לא יפתח שוב.
+  useEffect(() => {
+    const matchParam = searchParams.get("match");
+    if (!matchParam || allMatches.length === 0) return;
+    const matchId = parseInt(matchParam, 10);
+    if (!matchId) return;
+    const m = allMatches.find((x) => x.id === matchId);
+    if (!m) return;
+    if (!m.predictions_locked && m.status === "scheduled") {
+      setOpenMatch(m);
+    } else if (m.predictions_locked || m.status === "live" || m.status === "finished") {
+      navigate(`/match/${m.id}`);
+    }
+    // ניקוי ה-param (replace כדי שלא יישאר ב-back stack)
+    const next = new URLSearchParams(searchParams);
+    next.delete("match");
+    setSearchParams(next, { replace: true });
+  }, [allMatches, searchParams, setSearchParams, navigate]);
+
   // סינון לפי מחזור נבחר
   const matchesInRound = useMemo(() => {
     return allMatches.filter((m) => m.group_round === selectedRound);
@@ -356,6 +376,25 @@ function KnockoutTab() {
       setOpenMatch(m);
     }
   }
+
+  // Deep-link מ-Home: אם נכנסנו עם ?match=ID, נפתח את מודאל הניחוש לאותו משחק
+  // אוטומטית (אחרי שהמשחקים נטענו). מנקים את הפרמטר כדי שרענון לא יפתח שוב.
+  useEffect(() => {
+    const matchParam = searchParams.get("match");
+    if (!matchParam || !allMatches || allMatches.length === 0) return;
+    const matchId = parseInt(matchParam, 10);
+    if (!matchId) return;
+    const m = allMatches.find((x) => x.id === matchId);
+    if (!m) return;
+    if (!m.predictions_locked && m.status === "scheduled") {
+      setOpenMatch(m);
+    } else if (m.predictions_locked || m.status === "live" || m.status === "finished") {
+      navigate(`/match/${m.id}`);
+    }
+    const next = new URLSearchParams(searchParams);
+    next.delete("match");
+    setSearchParams(next, { replace: true });
+  }, [allMatches, searchParams, setSearchParams, navigate]);
 
   // משחקים בשלב הנבחר
   const matchesInStage = useMemo(() => {
