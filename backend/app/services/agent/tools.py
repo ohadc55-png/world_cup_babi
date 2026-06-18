@@ -112,23 +112,8 @@ AGENT_TOOLS: list[dict] = [
             "required": ["match_id"],
         },
     },
-    {
-        "name": "get_scoring_rules",
-        "description": "מחזיר את כללי הניקוד של האפליקציה. השתמש כשהמשתמש שואל 'כמה נקודות אקבל אם...'",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "category": {
-                    "type": "string",
-                    "enum": [
-                        "group_match", "group_standings", "knockout",
-                        "final", "longterm", "double_down", "all",
-                    ],
-                }
-            },
-            "required": ["category"],
-        },
-    },
+    # NOTE: get_scoring_rules הוסר ב-2026-06-18 — החוקים עכשיו inline ב-SYSTEM_PROMPT
+    # כדי שהסוכן יראה אותם כל פנייה ויענה בלי tool hop. ראה prompts.py.
 ]
 
 
@@ -151,7 +136,6 @@ def execute_tool(name: str, tool_input: dict, user_id: str, game_id: str | None)
         "get_leaderboard": _get_leaderboard,
         "get_double_down_status": _get_double_down_status,
         "get_match_stats": _get_match_stats,
-        "get_scoring_rules": _get_scoring_rules,
     }
     handler = handlers.get(name)
     if not handler:

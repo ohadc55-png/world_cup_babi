@@ -30,7 +30,9 @@ class Settings(BaseSettings):
 
     # === Phase 8 — AI Agent ===
     ANTHROPIC_API_KEY: str = ""  # ריק = הסוכן יחזיר שגיאה ידידותית; המשתמש מוסיף ב-.env
-    ANTHROPIC_MODEL: str = "claude-haiku-4-5-20251001"
+    # Sonnet 4.6 — חזק משמעותית מ-Haiku לעברית עשירה, multi-step reasoning,
+    # ושמירת קונטקסט שיחה ארוכה. נדרש לאיכות תשובות על חוקים.
+    ANTHROPIC_MODEL: str = "claude-sonnet-4-6"
     AGENT_MAX_HISTORY_MESSAGES: int = 50   # קונטקסט שנשלח ל-Claude (חיתוך כדי לחסוך עלויות)
     AGENT_MAX_TOOL_ITERATIONS: int = 5     # מקסימום מעגלי tool_use לפני fallback
 
