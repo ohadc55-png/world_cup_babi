@@ -46,14 +46,16 @@ function TableContent({ standing, large = false }: { standing: GroupStanding; la
         </span>
       </div>
 
-      {/* Column headers — RTL: # | team | flag | W | D | L | GD | Pts (right→left) */}
+      {/* Column headers — RTL: # | team | flag | [spacer] | W | D | L | GD | Pts (right→left)
+          Team info hugs right edge, stats hug left edge, gap in the middle. */}
       <div
-        className="grid grid-cols-[18px_1fr_22px_22px_22px_22px_28px_28px] gap-1.5 px-3 py-1.5 text-[9px] font-bold text-[color:var(--color-muted)]"
+        className="grid grid-cols-[18px_auto_22px_1fr_22px_22px_22px_28px_28px] gap-1.5 px-3 py-1.5 text-[9px] font-bold text-[color:var(--color-muted)]"
         style={{ background: "rgba(0,0,0,0.18)" }}
       >
         <span className="text-center" title="מיקום">#</span>
         <span className="text-end">קבוצה</span>
         <span></span> {/* flag column — no header */}
+        <span></span> {/* spacer */}
         <span className="text-center" title="נצחונות">W</span>
         <span className="text-center" title="תיקו">D</span>
         <span className="text-center" title="הפסדים">L</span>
@@ -91,7 +93,7 @@ function StandingRow({
 
   return (
     <div
-      className={`grid grid-cols-[18px_1fr_22px_22px_22px_22px_28px_28px] items-center gap-1.5 px-3 ${large ? "py-2.5" : "py-2"}`}
+      className={`grid grid-cols-[18px_auto_22px_1fr_22px_22px_22px_28px_28px] items-center gap-1.5 px-3 ${large ? "py-2.5" : "py-2"}`}
       style={{
         borderTop: "1px solid rgba(255,255,255,0.04)",
         background: advancing && groupComplete ? "rgba(6,167,125,0.05)" : undefined,
@@ -104,12 +106,14 @@ function StandingRow({
       >
         {row.position}
       </span>
-      {/* Team name */}
-      <span className={`text-end font-bold text-white truncate ${large ? "text-[13.5px]" : "text-[12.5px]"}`}>
+      {/* Team name — auto width, hugs the rank on the right */}
+      <span className={`text-end font-bold text-white whitespace-nowrap ${large ? "text-[13.5px]" : "text-[12.5px]"}`}>
         {info.he}
       </span>
       {/* Flag */}
       <span className={`text-center ${large ? "text-[16px]" : "text-[14px]"}`}>{info.flag}</span>
+      {/* Spacer — pushes stats to the left, team info stays right */}
+      <span />
       {/* Stats — order unchanged from before (W/D/L/GD/Pts left side in RTL) */}
       <span
         className={`num text-center font-medium text-white/80 ${large ? "text-[12px]" : "text-[11px]"}`}
