@@ -46,24 +46,24 @@ function TableContent({ standing, large = false }: { standing: GroupStanding; la
         </span>
       </div>
 
-      {/* Column headers — flex עם justify-between: team-info דחוק לימין, stats דחוקים לשמאל.
-          ב-RTL: ה-DOM-first (team-info) ברצף הקצה הימני, ה-DOM-second (stats) בקצה שמאלי. */}
+      {/* Column headers — team info hugs right (auto width), stats spread evenly across rest of row.
+          ב-RTL: ה-DOM-first (team-info) בצד ימין, ה-DOM-second (stats grid) ממלא את שאר הרוחב. */}
       <div
-        className="flex items-center justify-between gap-2 px-3 py-1.5 text-[9px] font-bold text-[color:var(--color-muted)]"
+        className="flex items-center gap-2 px-3 py-1.5 text-[9px] font-bold text-[color:var(--color-muted)]"
         style={{ background: "rgba(0,0,0,0.18)" }}
       >
-        {/* Right cluster (team info) */}
-        <div className="flex items-center gap-1.5">
+        {/* Team info cluster — shrink-0 keeps it tight on the right */}
+        <div className="flex shrink-0 items-center gap-1.5">
           <span className="w-[18px] text-center" title="מיקום">#</span>
           <span title="קבוצה">קבוצה</span>
         </div>
-        {/* Left cluster (stats) */}
-        <div className="flex items-center gap-1.5">
-          <span className="w-[22px] text-center" title="נצחונות">W</span>
-          <span className="w-[22px] text-center" title="תיקו">D</span>
-          <span className="w-[22px] text-center" title="הפסדים">L</span>
-          <span className="w-[28px] text-center" title="הפרש שערים">GD</span>
-          <span className="w-[28px] text-center" title="נקודות">Pts</span>
+        {/* Stats — equal-width grid filling the rest */}
+        <div className="grid flex-1 grid-cols-5">
+          <span className="text-center" title="נצחונות">W</span>
+          <span className="text-center" title="תיקו">D</span>
+          <span className="text-center" title="הפסדים">L</span>
+          <span className="text-center" title="הפרש שערים">GD</span>
+          <span className="text-center" title="נקודות">Pts</span>
         </div>
       </div>
 
@@ -97,14 +97,14 @@ function StandingRow({
 
   return (
     <div
-      className={`flex items-center justify-between gap-2 px-3 ${large ? "py-2.5" : "py-2"}`}
+      className={`flex items-center gap-2 px-3 ${large ? "py-2.5" : "py-2"}`}
       style={{
         borderTop: "1px solid rgba(255,255,255,0.04)",
         background: advancing && groupComplete ? "rgba(6,167,125,0.05)" : undefined,
       }}
     >
-      {/* Right cluster (team info) — # + name + flag — pushed to right edge */}
-      <div className="flex items-center gap-1.5 min-w-0">
+      {/* Team info cluster — # + name + flag — hugs right edge, auto width */}
+      <div className="flex shrink-0 items-center gap-1.5 min-w-0">
         <span
           className="num w-[18px] text-center font-bold"
           style={{ color: positionColor, fontSize: large ? 11 : 10 }}
@@ -116,25 +116,25 @@ function StandingRow({
         </span>
         <span className={large ? "text-[16px]" : "text-[14px]"}>{info.flag}</span>
       </div>
-      {/* Left cluster (stats) — W/D/L/GD/Pts — pushed to left edge */}
-      <div className="flex items-center gap-1.5">
+      {/* Stats — equal-width grid filling the rest of the row */}
+      <div className="grid flex-1 grid-cols-5">
         <span
-          className={`num w-[22px] text-center font-medium text-white/80 ${large ? "text-[12px]" : "text-[11px]"}`}
+          className={`num text-center font-medium text-white/80 ${large ? "text-[12px]" : "text-[11px]"}`}
         >
           {row.won}
         </span>
         <span
-          className={`num w-[22px] text-center font-medium text-white/80 ${large ? "text-[12px]" : "text-[11px]"}`}
+          className={`num text-center font-medium text-white/80 ${large ? "text-[12px]" : "text-[11px]"}`}
         >
           {row.drawn}
         </span>
         <span
-          className={`num w-[22px] text-center font-medium text-white/80 ${large ? "text-[12px]" : "text-[11px]"}`}
+          className={`num text-center font-medium text-white/80 ${large ? "text-[12px]" : "text-[11px]"}`}
         >
           {row.lost}
         </span>
         <span
-          className={`num w-[28px] text-center font-bold ${large ? "text-[12px]" : "text-[11px]"}`}
+          className={`num text-center font-bold ${large ? "text-[12px]" : "text-[11px]"}`}
           style={{
             color: row.goal_diff > 0 ? "#06A77D" : row.goal_diff < 0 ? "#FF7A85" : "#C8D0DD",
           }}
@@ -142,7 +142,7 @@ function StandingRow({
           {row.goal_diff > 0 ? `+${row.goal_diff}` : row.goal_diff}
         </span>
         <span
-          className={`num w-[28px] text-center font-extrabold num-tight ${large ? "text-[14px]" : "text-[12.5px]"}`}
+          className={`num text-center font-extrabold num-tight ${large ? "text-[14px]" : "text-[12.5px]"}`}
           style={{ color: "#FFD93D" }}
         >
           {row.points}
