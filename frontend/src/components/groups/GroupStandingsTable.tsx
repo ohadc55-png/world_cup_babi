@@ -46,21 +46,25 @@ function TableContent({ standing, large = false }: { standing: GroupStanding; la
         </span>
       </div>
 
-      {/* Column headers — RTL: # | team | flag | [spacer] | W | D | L | GD | Pts (right→left)
-          Team info hugs right edge, stats hug left edge, gap in the middle. */}
+      {/* Column headers — flex עם justify-between: team-info דחוק לימין, stats דחוקים לשמאל.
+          ב-RTL: ה-DOM-first (team-info) ברצף הקצה הימני, ה-DOM-second (stats) בקצה שמאלי. */}
       <div
-        className="grid grid-cols-[18px_auto_22px_1fr_22px_22px_22px_28px_28px] gap-1.5 px-3 py-1.5 text-[9px] font-bold text-[color:var(--color-muted)]"
+        className="flex items-center justify-between gap-2 px-3 py-1.5 text-[9px] font-bold text-[color:var(--color-muted)]"
         style={{ background: "rgba(0,0,0,0.18)" }}
       >
-        <span className="text-center" title="מיקום">#</span>
-        <span className="text-end">קבוצה</span>
-        <span></span> {/* flag column — no header */}
-        <span></span> {/* spacer */}
-        <span className="text-center" title="נצחונות">W</span>
-        <span className="text-center" title="תיקו">D</span>
-        <span className="text-center" title="הפסדים">L</span>
-        <span className="text-center" title="הפרש שערים">GD</span>
-        <span className="text-center" title="נקודות">Pts</span>
+        {/* Right cluster (team info) */}
+        <div className="flex items-center gap-1.5">
+          <span className="w-[18px] text-center" title="מיקום">#</span>
+          <span title="קבוצה">קבוצה</span>
+        </div>
+        {/* Left cluster (stats) */}
+        <div className="flex items-center gap-1.5">
+          <span className="w-[22px] text-center" title="נצחונות">W</span>
+          <span className="w-[22px] text-center" title="תיקו">D</span>
+          <span className="w-[22px] text-center" title="הפסדים">L</span>
+          <span className="w-[28px] text-center" title="הפרש שערים">GD</span>
+          <span className="w-[28px] text-center" title="נקודות">Pts</span>
+        </div>
       </div>
 
       {/* Rows */}
@@ -93,57 +97,57 @@ function StandingRow({
 
   return (
     <div
-      className={`grid grid-cols-[18px_auto_22px_1fr_22px_22px_22px_28px_28px] items-center gap-1.5 px-3 ${large ? "py-2.5" : "py-2"}`}
+      className={`flex items-center justify-between gap-2 px-3 ${large ? "py-2.5" : "py-2"}`}
       style={{
         borderTop: "1px solid rgba(255,255,255,0.04)",
         background: advancing && groupComplete ? "rgba(6,167,125,0.05)" : undefined,
       }}
     >
-      {/* Position — RTL rightmost */}
-      <span
-        className="num text-center font-bold"
-        style={{ color: positionColor, fontSize: large ? 11 : 10 }}
-      >
-        {row.position}
-      </span>
-      {/* Team name — auto width, hugs the rank on the right */}
-      <span className={`text-end font-bold text-white whitespace-nowrap ${large ? "text-[13.5px]" : "text-[12.5px]"}`}>
-        {info.he}
-      </span>
-      {/* Flag */}
-      <span className={`text-center ${large ? "text-[16px]" : "text-[14px]"}`}>{info.flag}</span>
-      {/* Spacer — pushes stats to the left, team info stays right */}
-      <span />
-      {/* Stats — order unchanged from before (W/D/L/GD/Pts left side in RTL) */}
-      <span
-        className={`num text-center font-medium text-white/80 ${large ? "text-[12px]" : "text-[11px]"}`}
-      >
-        {row.won}
-      </span>
-      <span
-        className={`num text-center font-medium text-white/80 ${large ? "text-[12px]" : "text-[11px]"}`}
-      >
-        {row.drawn}
-      </span>
-      <span
-        className={`num text-center font-medium text-white/80 ${large ? "text-[12px]" : "text-[11px]"}`}
-      >
-        {row.lost}
-      </span>
-      <span
-        className={`num text-center font-bold ${large ? "text-[12px]" : "text-[11px]"}`}
-        style={{
-          color: row.goal_diff > 0 ? "#06A77D" : row.goal_diff < 0 ? "#FF7A85" : "#C8D0DD",
-        }}
-      >
-        {row.goal_diff > 0 ? `+${row.goal_diff}` : row.goal_diff}
-      </span>
-      <span
-        className={`num text-center font-extrabold num-tight ${large ? "text-[14px]" : "text-[12.5px]"}`}
-        style={{ color: "#FFD93D" }}
-      >
-        {row.points}
-      </span>
+      {/* Right cluster (team info) — # + name + flag — pushed to right edge */}
+      <div className="flex items-center gap-1.5 min-w-0">
+        <span
+          className="num w-[18px] text-center font-bold"
+          style={{ color: positionColor, fontSize: large ? 11 : 10 }}
+        >
+          {row.position}
+        </span>
+        <span className={`font-bold text-white truncate ${large ? "text-[13.5px]" : "text-[12.5px]"}`}>
+          {info.he}
+        </span>
+        <span className={large ? "text-[16px]" : "text-[14px]"}>{info.flag}</span>
+      </div>
+      {/* Left cluster (stats) — W/D/L/GD/Pts — pushed to left edge */}
+      <div className="flex items-center gap-1.5">
+        <span
+          className={`num w-[22px] text-center font-medium text-white/80 ${large ? "text-[12px]" : "text-[11px]"}`}
+        >
+          {row.won}
+        </span>
+        <span
+          className={`num w-[22px] text-center font-medium text-white/80 ${large ? "text-[12px]" : "text-[11px]"}`}
+        >
+          {row.drawn}
+        </span>
+        <span
+          className={`num w-[22px] text-center font-medium text-white/80 ${large ? "text-[12px]" : "text-[11px]"}`}
+        >
+          {row.lost}
+        </span>
+        <span
+          className={`num w-[28px] text-center font-bold ${large ? "text-[12px]" : "text-[11px]"}`}
+          style={{
+            color: row.goal_diff > 0 ? "#06A77D" : row.goal_diff < 0 ? "#FF7A85" : "#C8D0DD",
+          }}
+        >
+          {row.goal_diff > 0 ? `+${row.goal_diff}` : row.goal_diff}
+        </span>
+        <span
+          className={`num w-[28px] text-center font-extrabold num-tight ${large ? "text-[14px]" : "text-[12.5px]"}`}
+          style={{ color: "#FFD93D" }}
+        >
+          {row.points}
+        </span>
+      </div>
     </div>
   );
 }
