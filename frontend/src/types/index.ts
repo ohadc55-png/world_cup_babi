@@ -231,6 +231,27 @@ export type TournamentPredictions = {
   points_breakdown: Record<string, unknown> | null;
 };
 
+// ניחושי טווח-ארוך של חבר אחר בקבוצה — לתצוגת "מי ניחש מה"
+export type MemberTournamentPrediction = {
+  user_id: string;
+  username: string;
+  avatar_url: string | null;
+  // קבוצות
+  winner: string | null;
+  finalist_1: string | null;
+  finalist_2: string | null;
+  semifinalist_1: string | null;
+  semifinalist_2: string | null;
+  semifinalist_3: string | null;
+  semifinalist_4: string | null;
+  // שחקנים — טקסט גולמי + שם קנוני אופציונלי
+  top_scorer: string | null;
+  top_scorer_canonical: string | null;
+  top_assister: string | null;
+  top_assister_canonical: string | null;
+  golden_ball: string | null;
+};
+
 // ============================================
 // User profile (public view of another member)
 // ============================================

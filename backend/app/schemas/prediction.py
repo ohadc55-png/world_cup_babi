@@ -93,6 +93,32 @@ class TournamentPredictionsOut(TournamentPredictionsUpsert):
     points_breakdown: dict[str, Any] | None = None
 
 
+class MemberTournamentPrediction(BaseModel):
+    """
+    ניחושי טווח-ארוך של חבר אחר בקבוצה — לתצוגת "מי ניחש מה".
+
+    נחשף רק אחרי שהטורניר התחיל (אז ניחושים כבר נעולים והגינות נשמרת).
+    Endpoint סוקר רק חברי game_id של המבקש — לא נוגע בנתונים של game אחר.
+    """
+    user_id: str
+    username: str
+    avatar_url: str | None = None
+    # קבוצות
+    winner: str | None = None
+    finalist_1: str | None = None
+    finalist_2: str | None = None
+    semifinalist_1: str | None = None
+    semifinalist_2: str | None = None
+    semifinalist_3: str | None = None
+    semifinalist_4: str | None = None
+    # שחקנים — טקסט גולמי שהמשתמש הקליד + שם קנוני אופציונלי (מ-resolution script)
+    top_scorer: str | None = None
+    top_scorer_canonical: str | None = None
+    top_assister: str | None = None
+    top_assister_canonical: str | None = None
+    golden_ball: str | None = None
+
+
 # ============================================
 # Double Down tokens
 # ============================================

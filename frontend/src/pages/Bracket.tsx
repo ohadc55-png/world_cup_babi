@@ -18,6 +18,7 @@ import { Logo } from "@/components/layout/Logo";
 import { PageBackground } from "@/components/layout/PageBackground";
 import { GroupStandingsCard } from "@/components/groups/GroupStandingsTable";
 import { TopAthletesTable } from "@/components/tournament/TopAthletesTable";
+import { WhoPickedWhatView } from "@/components/tournament/WhoPickedWhatView";
 import type { Match, Stage } from "@/types";
 
 const COLUMNS: { stage: Stage; title: string; count: number }[] = [
@@ -28,8 +29,8 @@ const COLUMNS: { stage: Stage; title: string; count: number }[] = [
   { stage: "final", title: "גמר", count: 1 },
 ];
 
-type TournamentTab = "groups" | "bracket" | "top";
-const VALID_TT: TournamentTab[] = ["groups", "bracket", "top"];
+type TournamentTab = "groups" | "bracket" | "top" | "who";
+const VALID_TT: TournamentTab[] = ["groups", "bracket", "top", "who"];
 
 type TopKind = "scorers" | "assisters";
 const VALID_TOP: TopKind[] = ["scorers", "assisters"];
@@ -108,11 +109,12 @@ export function Bracket() {
 
         {/* Sub-tabs */}
         <div className="px-5 pb-2 pt-1">
-          <div className="grid grid-cols-3 gap-1.5">
+          <div className="grid grid-cols-4 gap-1.5">
             {([
               { key: "groups", label: "בתים" },
               { key: "bracket", label: "פלייאוף" },
               { key: "top", label: "מצטיינים" },
+              { key: "who", label: "מי ניחש מה" },
             ] as { key: TournamentTab; label: string }[]).map(({ key, label }) => {
               const isActive = activeTab === key;
               return (
@@ -263,6 +265,9 @@ export function Bracket() {
           <TopAthletesTable category={activeTopKind} />
         </div>
       )}
+
+      {/* === WHO PICKED WHAT TAB === */}
+      {activeTab === "who" && <WhoPickedWhatView />}
       </div>
     </div>
   );
