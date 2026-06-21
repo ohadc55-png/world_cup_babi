@@ -214,6 +214,34 @@ export type MyScoreDetail = {
   points_above_below: number | null;
 };
 
+// ============================================
+// Leaderboard timeline (Bumps Chart — last 5 finished matches)
+// ============================================
+
+export type TimelineResult = "exact" | "direction" | "miss";
+
+export type TimelineCheckpoint = {
+  match_id: number;
+  label: string;       // "POR-CGO"
+  sub_label: string;   // "מ3" / "R32" / "1/4" / ...
+  finished_at: string; // ISO 8601
+};
+
+export type TimelineMember = {
+  user_id: string;
+  username: string;
+  avatar_url: string | null;
+  is_me: boolean;
+  ranks: number[];          // 1 = first place; aligned with checkpoints
+  pts: number[];            // cumulative points after each checkpoint
+  results: TimelineResult[];
+};
+
+export type TimelineResponse = {
+  checkpoints: TimelineCheckpoint[];   // empty if <2 finished matches
+  members: TimelineMember[];
+};
+
 export type TournamentPredictions = {
   winner: string | null;
   finalist_1: string | null;

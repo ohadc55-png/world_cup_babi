@@ -20,13 +20,18 @@ import { useAuth } from "@/hooks/useAuth";
 import { useLeaderboard, useMyScore } from "@/hooks/useLeaderboard";
 import { Logo } from "@/components/layout/Logo";
 import { PageBackground } from "@/components/layout/PageBackground";
+import { RankProgressionChart } from "@/components/leaderboard/RankProgressionChart";
 import { MOCK_LEADERBOARD, MOCK_MY_SCORE } from "@/lib/mockLeaderboard";
 import type { LeaderboardEntry } from "@/types";
+
+type SubTab = "table" | "timeline";
 
 export function Leaderboard() {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const isMock = searchParams.get("mock") === "1";
+  const activeTab: SubTab =
+    searchParams.get("tab") === "timeline" ? "timeline" : "table";
 
   const { data: liveLb, loading: lbLoading, error: lbError } = useLeaderboard();
   const { data: liveMe, loading: meLoading } = useMyScore();
@@ -41,6 +46,15 @@ export function Leaderboard() {
       isMock ? e.username === (user?.username ?? "") : e.user_id === user?.id,
     );
   }, [leaderboard, user?.id, user?.username, isMock]);
+
+  function setTab(tab: SubTab) {
+    if (tab === "table") {
+      searchParams.delete("tab");
+    } else {
+      searchParams.set("tab", tab);
+    }
+    setSearchParams(searchParams, { replace: true });
+  }
 
   return (
     <div className="relative min-h-dvh pb-24" style={{ background: "var(--color-bg)" }}>
@@ -57,18 +71,10 @@ export function Leaderboard() {
             paddingTop: "max(14px, env(safe-area-inset-top))",
           }}
         >
-          <div className="flex h-11 items-center justify-between px-5">
-            <div className="flex items-center gap-2">
-              <span
-                className="text-[11px] font-bold"
-                style={{ color: "#FFD93D", letterSpacing: "0.08em" }}
-              >
-                דירוג חי
-              </span>
-              <span className="h-1 w-1 animate-pulse rounded-full bg-[#FFD93D]" />
-            </div>
+          <div className="flex h-11 items-center justify-end px-5">
             <Logo size={24} showWordmark showTagline />
           </div>
+          <SubTabs activeTab={activeTab} onChange={setTab} />
         </header>
 
         <main className="px-4 pt-3">
@@ -108,59 +114,127 @@ export function Leaderboard() {
             </div>
           )}
 
-          {loading && (
-            <div className="py-20 text-center">
-              <p className="text-sm text-[color:var(--color-muted)]">טוען דירוג...</p>
-            </div>
-          )}
-
-          {!loading && lbError && (
-            <div className="py-20 text-center">
-              <p className="text-sm" style={{ color: "var(--color-error)" }}>
-                {lbError}
-              </p>
-            </div>
-          )}
-
-          {!loading && !lbError && leaderboard && leaderboard.length === 0 && <EmptyState />}
-
-          {!loading && !lbError && leaderboard && leaderboard.length > 0 && (
+          {activeTab === "table" && (
             <>
-              {/* === MY SCORE summary === */}
-              {myScore && myScore.rank !== null && (
-                <MyScoreCard
-                  rank={myScore.rank}
-                  totalUsers={myScore.total_users}
-                  totalPoints={myScore.total_points}
-                  pointsToNext={myScore.points_to_next}
-                  pointsAboveBelow={myScore.points_above_below}
-                  username={user?.username ?? "אורח"}
-                />
+              {loading && (
+                <div className="py-20 text-center">
+                  <p className="text-sm text-[color:var(--color-muted)]">טוען דירוג...</p>
+                </div>
               )}
 
-              {/* === Table === */}
-              <section className="mt-5">
-                <SectionHeader title="הדירוג" count={leaderboard.length} />
-                <LeaderboardTable
-                  entries={leaderboard}
-                  myUserId={isMock ? null : user?.id ?? null}
-                  myUsername={isMock ? user?.username ?? "" : null}
-                />
-              </section>
+              {!loading && lbError && (
+                <div className="py-20 text-center">
+                  <p className="text-sm" style={{ color: "var(--color-error)" }}>
+                    {lbError}
+                  </p>
+                </div>
+              )}
 
-              {myEntryIndex >= 0 && myEntryIndex < 3 && (
-                <p
-                  className="mt-6 text-center text-[11px] uppercase text-white/45"
-                  style={{ letterSpacing: "0.20em" }}
-                >
-                  כל הכבוד · אתה בטופ 3
-                </p>
+              {!loading && !lbError && leaderboard && leaderboard.length === 0 && <EmptyState />}
+
+              {!loading && !lbError && leaderboard && leaderboard.length > 0 && (
+                <>
+                  {/* === MY SCORE summary === */}
+                  {myScore && myScore.rank !== null && (
+                    <MyScoreCard
+                      rank={myScore.rank}
+                      totalUsers={myScore.total_users}
+                      totalPoints={myScore.total_points}
+                      pointsToNext={myScore.points_to_next}
+                      pointsAboveBelow={myScore.points_above_below}
+                      username={user?.username ?? "אורח"}
+                    />
+                  )}
+
+                  {/* === Table === */}
+                  <section className="mt-5">
+                    <SectionHeader title="הדירוג" count={leaderboard.length} />
+                    <LeaderboardTable
+                      entries={leaderboard}
+                      myUserId={isMock ? null : user?.id ?? null}
+                      myUsername={isMock ? user?.username ?? "" : null}
+                    />
+                  </section>
+
+                  {myEntryIndex >= 0 && myEntryIndex < 3 && (
+                    <p
+                      className="mt-6 text-center text-[11px] uppercase text-white/45"
+                      style={{ letterSpacing: "0.20em" }}
+                    >
+                      כל הכבוד · אתה בטופ 3
+                    </p>
+                  )}
+                </>
               )}
             </>
           )}
+
+          {activeTab === "timeline" && <RankProgressionChart />}
         </main>
       </div>
     </div>
+  );
+}
+
+// ============================================================
+// SubTabs — דירוג / התקדמות (חי מתחת ל-sticky header)
+// ============================================================
+
+function SubTabs({
+  activeTab,
+  onChange,
+}: {
+  activeTab: SubTab;
+  onChange: (tab: SubTab) => void;
+}) {
+  return (
+    <div className="px-5 pb-2.5 pt-1">
+      <div className="grid grid-cols-2 gap-1.5">
+        <SubTabButton
+          label="דירוג"
+          active={activeTab === "table"}
+          onClick={() => onChange("table")}
+        />
+        <SubTabButton
+          label="התקדמות"
+          active={activeTab === "timeline"}
+          onClick={() => onChange("timeline")}
+        />
+      </div>
+    </div>
+  );
+}
+
+function SubTabButton({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-2xl px-3 py-2.5 text-center no-tap transition-all"
+      style={{
+        background: active
+          ? "linear-gradient(135deg, rgba(230,57,70,0.20), rgba(230,57,70,0.08))"
+          : "rgba(20,27,45,0.45)",
+        border: `1.5px solid ${active ? "rgba(230,57,70,0.55)" : "rgba(255,255,255,0.10)"}`,
+        backdropFilter: "blur(12px) saturate(140%)",
+        WebkitBackdropFilter: "blur(12px) saturate(140%)",
+      }}
+    >
+      <span
+        className="text-[12.5px] font-extrabold"
+        style={{ color: active ? "white" : "rgba(255,255,255,0.85)" }}
+      >
+        {label}
+      </span>
+    </button>
   );
 }
 

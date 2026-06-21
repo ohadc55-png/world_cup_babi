@@ -1,0 +1,764 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Bumps Chart — Last 5 Matches</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --color-bg: #0A0E1A;
+    --color-muted: #8A93A6;
+    --color-brand-red: #E63946;
+    --color-gold: #FFD93D;
+    --color-silver: #C8D0DD;
+    --color-brand-green: #06A77D;
+    --color-light-blue: #9BBAEA;
+    --color-medium-blue: #7BB3F2;
+    --color-light-red: #FF7A85;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--color-bg);
+    font-family: 'Rubik', system-ui, sans-serif;
+    color: white;
+    min-height: 100vh;
+    padding: 14px 0 60px;
+  }
+
+  .num {
+    direction: ltr;
+    unicode-bidi: isolate;
+    font-feature-settings: "tnum" on, "lnum" on;
+    font-variant-numeric: tabular-nums;
+  }
+  .num-tight { letter-spacing: -0.04em; }
+
+  .frame {
+    max-width: 420px;
+    margin: 0 auto;
+    padding: 0 20px;
+  }
+
+  /* Sticky header */
+  .sticky-header {
+    background: linear-gradient(180deg, rgba(10,14,26,0.78), rgba(10,14,26,0.30) 70%, transparent);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    padding: 8px 20px;
+    margin-bottom: 4px;
+  }
+  .sticky-header .row {
+    display: flex; align-items: center; justify-content: space-between;
+    height: 44px; max-width: 420px; margin: 0 auto;
+  }
+  .sticky-header .right { display: flex; align-items: center; gap: 4px; }
+  .sticky-header .label {
+    color: var(--color-gold);
+    font-size: 12px; font-weight: 800; letter-spacing: 0.24em;
+  }
+  .live-dot {
+    width: 6px; height: 6px; border-radius: 999px;
+    background: var(--color-brand-red);
+    animation: pulse 1.6s ease-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* Sub-tabs */
+  .sub-tabs {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+    padding: 4px 20px 12px;
+    max-width: 420px; margin: 0 auto;
+  }
+  .sub-tab {
+    border-radius: 16px; padding: 10px 12px;
+    cursor: pointer; transition: all 0.2s ease;
+    background: rgba(20,27,45,0.45);
+    border: 1.5px solid rgba(255,255,255,0.10);
+    backdrop-filter: blur(12px) saturate(140%);
+    -webkit-backdrop-filter: blur(12px) saturate(140%);
+    text-align: center;
+    user-select: none; -webkit-tap-highlight-color: transparent;
+  }
+  .sub-tab span {
+    font-size: 12.5px; font-weight: 800;
+    color: rgba(255,255,255,0.85);
+  }
+  .sub-tab.active {
+    background: linear-gradient(135deg, rgba(230,57,70,0.20), rgba(230,57,70,0.08));
+    border-color: rgba(230,57,70,0.55);
+  }
+  .sub-tab.active span { color: white; }
+
+  /* Section header */
+  .section-header { padding: 0 4px; margin-bottom: 14px; }
+  .section-header h2 {
+    margin: 0;
+    color: var(--color-gold);
+    font-size: 12px; font-weight: 800; text-transform: uppercase;
+    letter-spacing: 0.24em;
+  }
+  .section-header .sub {
+    margin-top: 4px;
+    color: var(--color-muted);
+    font-size: 11px; font-weight: 500;
+  }
+  .section-header .hairline {
+    margin-top: 8px; height: 1px; width: 100%;
+    background: linear-gradient(90deg, rgba(255,217,61,0.45) 0%, rgba(255,217,61,0.08) 60%, transparent 100%);
+  }
+
+  /* Window indicator — "last 5 matches" */
+  .window-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; border-radius: 999px;
+    background: rgba(255,217,61,0.08);
+    border: 1px solid rgba(255,217,61,0.25);
+    margin-top: 6px;
+  }
+  .window-pill .ico {
+    width: 6px; height: 6px; border-radius: 999px;
+    background: var(--color-gold);
+    box-shadow: 0 0 6px rgba(255,217,61,0.8);
+  }
+  .window-pill .text {
+    font-size: 10.5px; font-weight: 700;
+    color: var(--color-gold);
+  }
+
+  /* Toggle pills */
+  .toggle-row {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+    margin-bottom: 14px;
+  }
+  .toggle-pill {
+    border-radius: 999px; padding: 8px 12px;
+    cursor: pointer;
+    background: rgba(20,27,45,0.45);
+    border: 1.5px solid rgba(255,255,255,0.10);
+    text-align: center;
+    user-select: none; -webkit-tap-highlight-color: transparent;
+    transition: all 0.2s ease;
+  }
+  .toggle-pill span {
+    font-size: 12px; font-weight: 800;
+    color: rgba(255,255,255,0.85);
+  }
+  .toggle-pill.active {
+    background: linear-gradient(135deg, rgba(255,217,61,0.18), rgba(255,170,0,0.06));
+    border-color: rgba(255,217,61,0.55);
+  }
+  .toggle-pill.active span { color: var(--color-gold); }
+
+  /* Chart card */
+  .chart-card {
+    background: rgba(20,27,45,0.55);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    border: 1px solid rgba(255,255,255,0.10);
+    border-radius: 18px;
+    padding: 14px;
+    box-shadow: 0 8px 24px -12px rgba(0,0,0,0.5);
+    margin-bottom: 14px;
+  }
+  .chart-svg { width: 100%; height: auto; display: block; }
+
+  /* Result color key — appears above the legend list */
+  .result-key {
+    display: flex; justify-content: center; gap: 16px;
+    margin-bottom: 10px;
+    padding: 8px 12px;
+    background: rgba(20,27,45,0.30);
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.04);
+  }
+  .rk-item {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 10.5px; font-weight: 600;
+    color: rgba(255,255,255,0.70);
+  }
+  .rk-dot {
+    width: 9px; height: 9px; border-radius: 999px;
+  }
+
+  /* Legend — refined, breathable */
+  .legend {
+    background: rgba(20,27,45,0.42);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 20px;
+    padding: 16px 12px;
+  }
+  .legend-title {
+    color: var(--color-muted);
+    font-size: 9.5px; font-weight: 600;
+    letter-spacing: 0.22em; text-transform: uppercase;
+    margin-bottom: 14px;
+    padding: 0 4px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .legend-title .hint {
+    color: rgba(138,147,166,0.55);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    font-weight: 400;
+  }
+  .legend-list {
+    display: flex; flex-direction: column;
+    gap: 2px;
+  }
+  .legend-row {
+    display: grid;
+    grid-template-columns: 14px 26px 1fr auto auto;
+    gap: 10px;
+    align-items: center;
+    padding: 9px 10px;
+    border-radius: 12px;
+    cursor: pointer;
+    user-select: none; -webkit-tap-highlight-color: transparent;
+    transition: background 0.18s ease, transform 0.18s ease;
+  }
+  .legend-row + .legend-row {
+    border-top: 1px solid rgba(255,255,255,0.04);
+  }
+  .legend-row:hover {
+    background: rgba(255,255,255,0.025);
+  }
+  .legend-row.highlighted {
+    background: rgba(255,255,255,0.055);
+    transform: translateX(2px);
+  }
+  .legend-row.is-me {
+    background: linear-gradient(270deg, rgba(230,57,70,0.08), rgba(230,57,70,0) 60%);
+  }
+  .legend-row.is-me.highlighted {
+    background: linear-gradient(270deg, rgba(230,57,70,0.14), rgba(230,57,70,0.02) 60%);
+  }
+  .legend-dot {
+    width: 10px; height: 10px; border-radius: 999px;
+    opacity: 0.85;
+  }
+  .legend-rank {
+    font-size: 12.5px; font-weight: 700;
+    color: rgba(255,255,255,0.85);
+    text-align: center;
+    letter-spacing: -0.02em;
+  }
+  .legend-row.is-me .legend-rank,
+  .legend-row.highlighted .legend-rank {
+    color: white;
+    font-weight: 800;
+  }
+  .legend-name {
+    font-size: 12.5px; font-weight: 600;
+    color: rgba(255,255,255,0.92);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .legend-row.is-me .legend-name { font-weight: 700; }
+  .legend-delta {
+    font-size: 10.5px; font-weight: 700;
+    padding: 2px 7px; border-radius: 8px;
+    min-width: 36px; text-align: center;
+    letter-spacing: 0.02em;
+  }
+  .delta-up   { color: #58c19c; background: rgba(6,167,125,0.10); }
+  .delta-down { color: #d99aa1; background: rgba(255,122,133,0.08); }
+  .delta-flat { color: rgba(138,147,166,0.6); background: transparent; }
+  .legend-pts {
+    color: rgba(255,217,61,0.85);
+    font-size: 11.5px; font-weight: 700;
+    text-align: end; min-width: 30px;
+    letter-spacing: -0.01em;
+  }
+  .legend-row.is-me .legend-pts,
+  .legend-row.highlighted .legend-pts {
+    color: var(--color-gold);
+    font-weight: 800;
+  }
+
+  /* Empty state */
+  .empty {
+    background: rgba(20,27,45,0.45);
+    border: 1px dashed rgba(255,255,255,0.12);
+    border-radius: 18px;
+    padding: 32px 20px; text-align: center;
+  }
+  .empty-icon {
+    margin: 0 auto 14px;
+    width: 56px; height: 56px; border-radius: 999px;
+    background: rgba(255,217,61,0.10);
+    border: 1px solid rgba(255,217,61,0.20);
+    display: grid; place-items: center;
+    color: var(--color-gold); font-size: 24px;
+  }
+  .empty h3 { margin: 0 0 6px; color: white; font-size: 14px; font-weight: 800; }
+  .empty p { margin: 0; color: var(--color-muted); font-size: 11.5px; }
+
+  /* Demo controls */
+  .demo-bar {
+    max-width: 420px; margin: 24px auto 0;
+    padding: 14px;
+    background: rgba(20,27,45,0.45);
+    border: 1px dashed rgba(255,255,255,0.10);
+    border-radius: 14px;
+    display: flex; gap: 8px; flex-wrap: wrap;
+    align-items: center;
+  }
+  .demo-bar .demo-label {
+    color: var(--color-muted);
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 0.16em; text-transform: uppercase;
+    width: 100%; margin-bottom: 4px;
+  }
+  .demo-btn {
+    padding: 6px 12px; border-radius: 10px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.10);
+    color: white;
+    font-size: 11.5px; font-weight: 700;
+    cursor: pointer; font-family: inherit;
+  }
+  .demo-btn.active {
+    background: rgba(230,57,70,0.15);
+    border-color: rgba(230,57,70,0.40);
+  }
+</style>
+</head>
+<body>
+
+<!-- Sticky header -->
+<div class="sticky-header">
+  <div class="row">
+    <div class="right">
+      <span style="font-size:14px;">🏆</span>
+      <span class="label">דירוג חי</span>
+      <span class="live-dot"></span>
+    </div>
+    <span style="font-size:13px;font-weight:700;color:white;">אוהד 👤</span>
+  </div>
+</div>
+
+<!-- Sub-tabs -->
+<div class="sub-tabs">
+  <div class="sub-tab" id="tabTable" onclick="setTab('table')">
+    <span>דירוג</span>
+  </div>
+  <div class="sub-tab active" id="tabTimeline" onclick="setTab('timeline')">
+    <span>התקדמות</span>
+  </div>
+</div>
+
+<!-- Main content -->
+<div class="frame" id="mainContent">
+
+  <div class="section-header">
+    <h2>שינוי מיקום</h2>
+    <div class="sub">איך הסתדרת ב-5 המשחקים האחרונים</div>
+    <div class="window-pill">
+      <span class="ico"></span>
+      <span class="text">חלון מתגלגל · מתעדכן אחרי כל משחק</span>
+    </div>
+    <div class="hairline"></div>
+  </div>
+
+  <div id="loadedState">
+    <!-- Chart card -->
+    <div class="chart-card">
+      <svg class="chart-svg" id="chartSvg" viewBox="0 0 360 280" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+
+    <!-- Result-color legend (small caption above the table) -->
+    <div class="result-key">
+      <span class="rk-item"><span class="rk-dot" style="background:#10D98C;box-shadow:0 0 6px rgba(16,217,140,0.7)"></span>מדויק</span>
+      <span class="rk-item"><span class="rk-dot" style="background:#06734F"></span>כיוון</span>
+      <span class="rk-item"><span class="rk-dot" style="background:#E63946"></span>החטיא</span>
+    </div>
+
+    <!-- Legend with delta indicators -->
+    <div class="legend">
+      <div class="legend-title">
+        <span>שינוי מיקום ב-5 משחקים</span>
+        <span class="hint">טאפ להדגשה</span>
+      </div>
+      <div class="legend-list" id="legendList"></div>
+    </div>
+  </div>
+
+  <!-- Empty state -->
+  <div id="emptyState" style="display:none">
+    <div class="empty">
+      <div class="empty-icon">📊</div>
+      <h3>צריך לפחות 2 משחקים</h3>
+      <p>הגרף יוצג אחרי שיהיו מספיק משחקים שהסתיימו כדי להראות שינוי במיקום.</p>
+    </div>
+  </div>
+
+</div>
+
+<!-- Demo controls -->
+<div class="frame">
+  <div class="demo-bar">
+    <div class="demo-label">בקרת הדגמה (לא תופיע באפליקציה)</div>
+    <button class="demo-btn active" onclick="showLoaded()">מצב טעון</button>
+    <button class="demo-btn" onclick="showEmpty()">Empty state</button>
+    <button class="demo-btn" onclick="resetHighlight()">איפוס highlight</button>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   Mock data — 18 members × ranks at each of the last 5 matches
+   The window slides — each datapoint = rank AFTER that match finished.
+   ============================================================ */
+
+// Last 5 matches with friendly labels. In production these would be real:
+//   "BRA-ARG", "POR-FRA", "GER-ESP", "ENG-NED", "BRA-FRA"
+// For mockup we use compact tags so they fit nicely on X axis.
+const LAST_5 = [
+  { idx: 0, label: 'POR-CGO', sub: 'מ3'  },
+  { idx: 1, label: 'ARG-ALG', sub: 'מ3'  },
+  { idx: 2, label: 'GER-JPN', sub: 'R32' },
+  { idx: 3, label: 'BRA-MEX', sub: 'R32' },
+  { idx: 4, label: 'ENG-ITA', sub: 'R32' },
+];
+
+// Each member has 5 rank values (1=best) + 5 cumulative point values + 5 prediction results.
+// 'me' is the current user. In real app these come from /api/leaderboard/timeline?window=5
+// pts[i]     = cumulative total points after match i in the window
+// results[i] = 'exact' | 'direction' | 'miss' (the member's prediction for match i)
+const MEMBERS = [
+  { name: 'דורון',          ranks: [ 3,  2,  1,  1,  1], pts: [195, 201, 208, 213, 218], results: ['direction','exact','direction','direction','direction'], me: false },
+  { name: 'דניאל כהן',      ranks: [ 1,  1,  2,  3,  2], pts: [188, 194, 198, 200, 204], results: ['exact','direction','direction','miss','direction'],       me: false },
+  { name: 'יוסי לוי',        ranks: [ 5,  4,  3,  2,  3], pts: [175, 182, 189, 195, 198], results: ['direction','direction','exact','direction','miss'],         me: false },
+  { name: 'עוזיז',           ranks: [ 2,  3,  4,  5,  4], pts: [183, 187, 189, 190, 192], results: ['direction','miss','direction','miss','direction'],          me: false },
+  { name: 'אוהד',           ranks: [ 8,  7,  6,  4,  5], pts: [162, 168, 175, 184, 186], results: ['miss','direction','exact','exact','direction'],              me: true  },
+  { name: 'Aviv',           ranks: [ 4,  5,  5,  6,  6], pts: [170, 173, 175, 176, 178], results: ['direction','miss','miss','miss','direction'],                me: false },
+  { name: 'Barak',          ranks: [ 7,  8,  7,  7,  7], pts: [164, 166, 168, 170, 172], results: ['miss','direction','miss','direction','direction'],           me: false },
+  { name: 'Kings nirgawa',  ranks: [ 6,  6,  8,  8,  8], pts: [166, 168, 164, 165, 166], results: ['miss','miss','miss','miss','direction'],                    me: false },
+  { name: 'דור צבר',        ranks: [ 9,  9,  9,  9,  9], pts: [152, 155, 157, 158, 160], results: ['direction','miss','miss','direction','miss'],                me: false },
+  { name: 'יובל כהן',        ranks: [10, 10, 10, 11, 10], pts: [146, 148, 150, 151, 154], results: ['miss','direction','miss','miss','direction'],                me: false },
+  { name: 'אודי מישאלוב',    ranks: [11, 12, 11, 10, 11], pts: [140, 142, 145, 148, 148], results: ['miss','direction','direction','miss','miss'],                me: false },
+  { name: 'יואב',            ranks: [12, 11, 12, 12, 12], pts: [134, 140, 140, 141, 142], results: ['direction','miss','miss','miss','miss'],                    me: false },
+  { name: 'איתי',            ranks: [14, 13, 13, 13, 13], pts: [124, 130, 132, 134, 136], results: ['miss','miss','miss','direction','miss'],                    me: false },
+  { name: 'גלעד',            ranks: [13, 14, 14, 14, 14], pts: [128, 128, 129, 129, 130], results: ['miss','miss','miss','miss','miss'],                         me: false },
+  { name: 'נועם',            ranks: [15, 15, 15, 15, 15], pts: [116, 118, 120, 121, 122], results: ['miss','miss','miss','miss','miss'],                         me: false },
+  { name: 'רועי',            ranks: [16, 16, 16, 16, 16], pts: [108, 110, 113, 114, 116], results: ['miss','miss','miss','miss','miss'],                         me: false },
+  { name: 'אדם',             ranks: [17, 17, 17, 17, 17], pts: [100, 102, 104, 106, 108], results: ['miss','miss','miss','miss','miss'],                         me: false },
+  { name: 'תום',             ranks: [18, 18, 18, 18, 18], pts: [ 92,  94,  96,  98, 100], results: ['miss','miss','miss','miss','miss'],                         me: false },
+];
+function currentPoints(m) { return m.pts[m.pts.length - 1]; }
+
+// Result colors — apply to circles of the labeled (highlighted/me) member
+const RESULT_COLOR = {
+  exact:     '#10D98C',  // glowing green — direction + exact
+  direction: '#06734F',  // dark green — direction only
+  miss:      '#E63946',  // brand red — neither
+};
+const RESULT_GLOW = {
+  exact:     'drop-shadow(0 0 5px rgba(16,217,140,0.85))',
+  direction: 'drop-shadow(0 0 2px rgba(6,115,79,0.6))',
+  miss:      'drop-shadow(0 0 2px rgba(230,57,70,0.5))',
+};
+
+const PALETTE = [
+  '#E63946', '#7BB3F2', '#06A77D', '#FFD93D',
+  '#C8D0DD', '#9BBAEA', '#FF7A85', '#A78BFA',
+];
+function colorForIndex(i) { return PALETTE[i % PALETTE.length]; }
+
+/* ============================================================
+   Chart rendering
+   ============================================================ */
+
+const SVG = document.getElementById('chartSvg');
+const VB_W = 360, VB_H = 280;
+const PAD_LEFT = 24, PAD_RIGHT = 18, PAD_TOP = 14, PAD_BOTTOM = 42;
+const PLOT_W = VB_W - PAD_LEFT - PAD_RIGHT;
+const PLOT_H = VB_H - PAD_TOP - PAD_BOTTOM;
+const N_X = LAST_5.length;
+const N_MEMBERS = MEMBERS.length;
+
+let highlightedIdx = null;
+
+function xAt(i) {
+  return PAD_LEFT + (i / (N_X - 1)) * PLOT_W;
+}
+function yAt(rank) {
+  // rank 1 -> top, rank N -> bottom
+  return PAD_TOP + ((rank - 1) / (N_MEMBERS - 1)) * PLOT_H;
+}
+
+function renderChart() {
+  SVG.innerHTML = '';
+
+  // Major rank gridlines (full lines) — at key ranks
+  const MAJOR_RANKS = [1, 5, 10, 15, 18];
+  MAJOR_RANKS.forEach(rank => {
+    const y = yAt(rank);
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', PAD_LEFT);
+    line.setAttribute('y1', y);
+    line.setAttribute('x2', VB_W - PAD_RIGHT);
+    line.setAttribute('y2', y);
+    line.setAttribute('stroke', 'rgba(255,255,255,0.05)');
+    line.setAttribute('stroke-width', '1');
+    SVG.appendChild(line);
+  });
+
+  // Y-axis rank labels — every position 1-18, clearly readable on the left side
+  for (let rank = 1; rank <= N_MEMBERS; rank++) {
+    const y = yAt(rank);
+    const isMajor = MAJOR_RANKS.includes(rank);
+    const lbl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    lbl.setAttribute('x', PAD_LEFT - 6);
+    lbl.setAttribute('y', y + 3);
+    lbl.setAttribute('text-anchor', 'end');
+    lbl.setAttribute('font-size', isMajor ? '9.5' : '8');
+    lbl.setAttribute('font-weight', isMajor ? '700' : '500');
+    lbl.setAttribute('font-family', 'Rubik, sans-serif');
+    lbl.setAttribute('fill', isMajor ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.28)');
+    lbl.textContent = rank;
+    SVG.appendChild(lbl);
+  }
+
+  // X axis labels — 2 lines per checkpoint (label + sub-stage)
+  LAST_5.forEach((cp, i) => {
+    const x = xAt(i);
+    const lbl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    lbl.setAttribute('x', x);
+    lbl.setAttribute('y', VB_H - 22);
+    lbl.setAttribute('text-anchor', 'middle');
+    lbl.setAttribute('font-size', '9');
+    lbl.setAttribute('font-weight', '700');
+    lbl.setAttribute('font-family', 'Rubik, sans-serif');
+    lbl.setAttribute('fill', 'rgba(255,255,255,0.65)');
+    lbl.textContent = cp.label;
+    SVG.appendChild(lbl);
+
+    const sub = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    sub.setAttribute('x', x);
+    sub.setAttribute('y', VB_H - 10);
+    sub.setAttribute('text-anchor', 'middle');
+    sub.setAttribute('font-size', '8.5');
+    sub.setAttribute('font-family', 'Rubik, sans-serif');
+    sub.setAttribute('fill', 'rgba(255,255,255,0.35)');
+    sub.textContent = cp.sub;
+    SVG.appendChild(sub);
+  });
+
+  // Mark the "NOW" position (right edge) with a faint vertical glow
+  const nowX = xAt(N_X - 1);
+  const nowGlow = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  nowGlow.setAttribute('x1', nowX);
+  nowGlow.setAttribute('y1', PAD_TOP);
+  nowGlow.setAttribute('x2', nowX);
+  nowGlow.setAttribute('y2', VB_H - PAD_BOTTOM);
+  nowGlow.setAttribute('stroke', 'rgba(255,217,61,0.20)');
+  nowGlow.setAttribute('stroke-width', '1');
+  nowGlow.setAttribute('stroke-dasharray', '2 3');
+  SVG.appendChild(nowGlow);
+
+  // Render members in two passes (dim then bright)
+  const passes = [
+    { test: (i, m) => !m.me && i !== highlightedIdx, opacity: 0.28, strokeWidth: 1.5, r: 2 },
+    { test: (i, m) => m.me || i === highlightedIdx,  opacity: 1.0,  strokeWidth: 2.8, r: 3.5 },
+  ];
+
+  // The "labeled" member (highlighted or me as default) gets result-colored circles
+  const labeledIdx = (highlightedIdx !== null) ? highlightedIdx : MEMBERS.findIndex(m => m.me);
+
+  passes.forEach(pass => {
+    MEMBERS.forEach((m, idx) => {
+      if (!pass.test(idx, m)) return;
+
+      const lineColor = m.me ? 'var(--color-brand-red)' : colorForIndex(idx);
+      const polyPts = m.ranks.map((r, i) => `${xAt(i)},${yAt(r)}`).join(' ');
+
+      const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+      poly.setAttribute('points', polyPts);
+      poly.setAttribute('fill', 'none');
+      poly.setAttribute('stroke', lineColor);
+      poly.setAttribute('stroke-width', pass.strokeWidth);
+      poly.setAttribute('stroke-linecap', 'round');
+      poly.setAttribute('stroke-linejoin', 'round');
+      poly.setAttribute('opacity', pass.opacity);
+      if (m.me) {
+        poly.setAttribute('filter', 'drop-shadow(0 0 6px rgba(230,57,70,0.45))');
+      }
+      SVG.appendChild(poly);
+
+      const isLabeled = idx === labeledIdx;
+
+      m.ranks.forEach((r, i) => {
+        const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        c.setAttribute('cx', xAt(i));
+        c.setAttribute('cy', yAt(r));
+        if (isLabeled) {
+          // Result-colored circle for the focused user
+          const result = m.results[i];
+          const resultColor = RESULT_COLOR[result];
+          c.setAttribute('r', result === 'exact' ? 4.5 : 4);
+          c.setAttribute('fill', resultColor);
+          c.setAttribute('stroke', '#0A0E1A');
+          c.setAttribute('stroke-width', '1.2');
+          c.setAttribute('opacity', 1);
+          c.setAttribute('filter', RESULT_GLOW[result]);
+        } else {
+          c.setAttribute('r', pass.r);
+          c.setAttribute('fill', lineColor);
+          c.setAttribute('opacity', pass.opacity);
+        }
+        SVG.appendChild(c);
+      });
+    });
+  });
+
+  // ============================================================
+  // Pass 3: render point-value labels for highlighted member (or me)
+  // Labels show the cumulative points at each of the 5 datapoints.
+  // ============================================================
+  // Priority: tapped user > me. Only one label set at a time, to avoid clutter.
+  const labelMember = (highlightedIdx !== null) ? MEMBERS[highlightedIdx] : MEMBERS.find(m => m.me);
+  const labelIdx    = (highlightedIdx !== null) ? highlightedIdx          : MEMBERS.findIndex(m => m.me);
+
+  if (labelMember) {
+    const color = labelMember.me ? 'var(--color-brand-red)' : colorForIndex(labelIdx);
+
+    labelMember.ranks.forEach((r, i) => {
+      const cx = xAt(i);
+      const cy = yAt(r);
+      const value = labelMember.pts[i];
+
+      // Smart vertical position: above by default, below if too close to top
+      const labelAbove = cy > PAD_TOP + 18;
+      const yOffset = labelAbove ? -10 : 14;
+      const yText = cy + yOffset;
+
+      // Pill background (rounded rect)
+      const valueStr = String(value);
+      const w = valueStr.length * 6 + 10;
+      const h = 13;
+      const xRect = cx - w / 2;
+      const yRect = yText - h + 3;
+
+      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      rect.setAttribute('x', xRect);
+      rect.setAttribute('y', yRect);
+      rect.setAttribute('width', w);
+      rect.setAttribute('height', h);
+      rect.setAttribute('rx', 4);
+      rect.setAttribute('fill', '#0A0E1A');
+      rect.setAttribute('stroke', color);
+      rect.setAttribute('stroke-width', '1');
+      rect.setAttribute('opacity', '0.95');
+      SVG.appendChild(rect);
+
+      const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      txt.setAttribute('x', cx);
+      txt.setAttribute('y', yText);
+      txt.setAttribute('text-anchor', 'middle');
+      txt.setAttribute('font-size', '9.5');
+      txt.setAttribute('font-weight', '800');
+      txt.setAttribute('font-family', 'Rubik, sans-serif');
+      txt.setAttribute('fill', color);
+      txt.textContent = valueStr;
+      SVG.appendChild(txt);
+    });
+
+    // Name caption near the rightmost circle
+    const lastR = labelMember.ranks[labelMember.ranks.length - 1];
+    const nameX = xAt(N_X - 1);
+    const nameY = yAt(lastR);
+    const nameTxt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    nameTxt.setAttribute('x', nameX);
+    nameTxt.setAttribute('y', yAt(lastR) > VB_H - PAD_BOTTOM - 20 ? yAt(lastR) - 24 : yAt(lastR) + 30);
+    nameTxt.setAttribute('text-anchor', 'middle');
+    nameTxt.setAttribute('font-size', '10.5');
+    nameTxt.setAttribute('font-weight', '800');
+    nameTxt.setAttribute('font-family', 'Rubik, sans-serif');
+    nameTxt.setAttribute('fill', color);
+    nameTxt.textContent = (labelMember.me ? '⭐ ' : '') + labelMember.name;
+    SVG.appendChild(nameTxt);
+  }
+}
+
+/* ============================================================
+   Legend with delta indicators
+   ============================================================ */
+function renderLegend() {
+  const grid = document.getElementById('legendList');
+  grid.innerHTML = '';
+
+  // Sort by current rank (last entry in ranks)
+  const sorted = MEMBERS
+    .map((m, idx) => ({ m, idx, currentRank: m.ranks[m.ranks.length - 1] }))
+    .sort((a, b) => a.currentRank - b.currentRank);
+
+  sorted.forEach(({ m, idx, currentRank }) => {
+    const startRank = m.ranks[0];
+    const delta = startRank - currentRank;  // positive = improved
+    let deltaClass = 'delta-flat';
+    let deltaText = '— 0';
+    if (delta > 0) { deltaClass = 'delta-up';   deltaText = `▲ ${delta}`; }
+    if (delta < 0) { deltaClass = 'delta-down'; deltaText = `▼ ${Math.abs(delta)}`; }
+
+    const item = document.createElement('div');
+    item.className = 'legend-row';
+    if (m.me) item.classList.add('is-me');
+    if (idx === highlightedIdx) item.classList.add('highlighted');
+    item.onclick = () => toggleHighlight(idx);
+
+    const color = m.me ? 'var(--color-brand-red)' : colorForIndex(idx);
+
+    item.innerHTML = `
+      <span class="legend-dot" style="background:${color}"></span>
+      <span class="legend-rank num">#${currentRank}</span>
+      <span class="legend-name">${m.me ? '⭐ ' : ''}${m.name}</span>
+      <span class="legend-delta ${deltaClass} num">${deltaText}</span>
+      <span class="legend-pts num">${currentPoints(m)}</span>
+    `;
+    grid.appendChild(item);
+  });
+}
+
+/* ============================================================
+   Interactions
+   ============================================================ */
+function toggleHighlight(idx) {
+  highlightedIdx = highlightedIdx === idx ? null : idx;
+  renderChart();
+  renderLegend();
+}
+function resetHighlight() {
+  highlightedIdx = null;
+  renderChart();
+  renderLegend();
+}
+function setTab(tab) {
+  document.getElementById('tabTable').classList.toggle('active', tab === 'table');
+  document.getElementById('tabTimeline').classList.toggle('active', tab === 'timeline');
+}
+function showLoaded() {
+  document.getElementById('loadedState').style.display = '';
+  document.getElementById('emptyState').style.display = 'none';
+  document.querySelectorAll('.demo-btn').forEach((b, i) => b.classList.toggle('active', i === 0));
+}
+function showEmpty() {
+  document.getElementById('loadedState').style.display = 'none';
+  document.getElementById('emptyState').style.display = '';
+  document.querySelectorAll('.demo-btn').forEach((b, i) => b.classList.toggle('active', i === 1));
+}
+
+renderChart();
+renderLegend();
+</script>
+
+</body>
+</html>
