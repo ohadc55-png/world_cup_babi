@@ -9,6 +9,11 @@ import { useNavigate } from "react-router-dom";
 import { getTeamInfo } from "@/lib/teams";
 import type { GroupStanding, TeamStanding } from "@/types";
 
+// Grid template אחיד ל-header ולשורות — כך כל עמודות הסטטיסטיקה
+// מתיישבות זו תחת זו ללא תלות באורך שם הקבוצה.
+// Column 1 = team info cluster (#+שם+דגל). Columns 2-6 = W/D/L/GD/Pts.
+const STATS_GRID = "minmax(0, 1.7fr) repeat(5, minmax(0, 1fr))";
+
 // ============================================================
 // Inner table content — shared between card + static views
 // ============================================================
@@ -46,25 +51,25 @@ function TableContent({ standing, large = false }: { standing: GroupStanding; la
         </span>
       </div>
 
-      {/* Column headers — team info hugs right (auto width), stats spread evenly across rest of row.
-          ב-RTL: ה-DOM-first (team-info) בצד ימין, ה-DOM-second (stats grid) ממלא את שאר הרוחב. */}
+      {/* Column headers — אותו grid template כמו השורות, כדי שעמודות W/D/L/GD/Pts
+          יהיו ישרות זו תחת זו ללא תלות באורך שם הקבוצה. */}
       <div
-        className="flex items-center gap-2 px-3 py-1.5 text-[9px] font-bold text-[color:var(--color-muted)]"
-        style={{ background: "rgba(0,0,0,0.18)" }}
+        className="grid items-center gap-2 px-3 py-1.5 text-[9px] font-bold text-[color:var(--color-muted)]"
+        style={{
+          gridTemplateColumns: STATS_GRID,
+          background: "rgba(0,0,0,0.18)",
+        }}
       >
-        {/* Team info cluster — shrink-0 keeps it tight on the right */}
-        <div className="flex shrink-0 items-center gap-1.5">
+        {/* Team info cluster — תופס את העמודה הראשונה של ה-grid */}
+        <div className="flex items-center gap-1.5 min-w-0">
           <span className="w-[18px] text-center" title="מיקום">#</span>
           <span title="קבוצה">קבוצה</span>
         </div>
-        {/* Stats — equal-width grid filling the rest */}
-        <div className="grid flex-1 grid-cols-5">
-          <span className="text-center" title="נצחונות">W</span>
-          <span className="text-center" title="תיקו">D</span>
-          <span className="text-center" title="הפסדים">L</span>
-          <span className="text-center" title="הפרש שערים">GD</span>
-          <span className="text-center" title="נקודות">Pts</span>
-        </div>
+        <span className="text-center" title="נצחונות">W</span>
+        <span className="text-center" title="תיקו">D</span>
+        <span className="text-center" title="הפסדים">L</span>
+        <span className="text-center" title="הפרש שערים">GD</span>
+        <span className="text-center" title="נקודות">Pts</span>
       </div>
 
       {/* Rows */}
@@ -97,57 +102,55 @@ function StandingRow({
 
   return (
     <div
-      className={`flex items-center gap-2 px-3 ${large ? "py-2.5" : "py-2"}`}
+      className={`grid items-center gap-2 px-3 ${large ? "py-2.5" : "py-2"}`}
       style={{
+        gridTemplateColumns: STATS_GRID,
         borderTop: "1px solid rgba(255,255,255,0.04)",
         background: advancing && groupComplete ? "rgba(6,167,125,0.05)" : undefined,
       }}
     >
-      {/* Team info cluster — # + name + flag — hugs right edge, auto width */}
-      <div className="flex shrink-0 items-center gap-1.5 min-w-0">
+      {/* Team info cluster — תופס את העמודה הראשונה של ה-grid (אותה רוחב לכל השורות) */}
+      <div className="flex items-center gap-1.5 min-w-0">
         <span
           className="num w-[18px] text-center font-bold"
           style={{ color: positionColor, fontSize: large ? 11 : 10 }}
         >
           {row.position}
         </span>
-        <span className={`font-bold text-white truncate ${large ? "text-[13.5px]" : "text-[12.5px]"}`}>
+        <span className={`min-w-0 truncate font-bold text-white ${large ? "text-[13.5px]" : "text-[12.5px]"}`}>
           {info.he}
         </span>
         <span className={large ? "text-[16px]" : "text-[14px]"}>{info.flag}</span>
       </div>
-      {/* Stats — equal-width grid filling the rest of the row */}
-      <div className="grid flex-1 grid-cols-5">
-        <span
-          className={`num text-center font-medium text-white/80 ${large ? "text-[12px]" : "text-[11px]"}`}
-        >
-          {row.won}
-        </span>
-        <span
-          className={`num text-center font-medium text-white/80 ${large ? "text-[12px]" : "text-[11px]"}`}
-        >
-          {row.drawn}
-        </span>
-        <span
-          className={`num text-center font-medium text-white/80 ${large ? "text-[12px]" : "text-[11px]"}`}
-        >
-          {row.lost}
-        </span>
-        <span
-          className={`num text-center font-bold ${large ? "text-[12px]" : "text-[11px]"}`}
-          style={{
-            color: row.goal_diff > 0 ? "#06A77D" : row.goal_diff < 0 ? "#FF7A85" : "#C8D0DD",
-          }}
-        >
-          {row.goal_diff > 0 ? `+${row.goal_diff}` : row.goal_diff}
-        </span>
-        <span
-          className={`num text-center font-extrabold num-tight ${large ? "text-[14px]" : "text-[12.5px]"}`}
-          style={{ color: "#FFD93D" }}
-        >
-          {row.points}
-        </span>
-      </div>
+      <span
+        className={`num text-center font-medium text-white/80 ${large ? "text-[12px]" : "text-[11px]"}`}
+      >
+        {row.won}
+      </span>
+      <span
+        className={`num text-center font-medium text-white/80 ${large ? "text-[12px]" : "text-[11px]"}`}
+      >
+        {row.drawn}
+      </span>
+      <span
+        className={`num text-center font-medium text-white/80 ${large ? "text-[12px]" : "text-[11px]"}`}
+      >
+        {row.lost}
+      </span>
+      <span
+        className={`num text-center font-bold ${large ? "text-[12px]" : "text-[11px]"}`}
+        style={{
+          color: row.goal_diff > 0 ? "#06A77D" : row.goal_diff < 0 ? "#FF7A85" : "#C8D0DD",
+        }}
+      >
+        {row.goal_diff > 0 ? `+${row.goal_diff}` : row.goal_diff}
+      </span>
+      <span
+        className={`num text-center font-extrabold num-tight ${large ? "text-[14px]" : "text-[12.5px]"}`}
+        style={{ color: "#FFD93D" }}
+      >
+        {row.points}
+      </span>
     </div>
   );
 }
