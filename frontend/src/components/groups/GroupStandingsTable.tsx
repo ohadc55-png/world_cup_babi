@@ -11,8 +11,10 @@ import type { GroupStanding, TeamStanding } from "@/types";
 
 // Grid template אחיד ל-header ולשורות — כך כל עמודות הסטטיסטיקה
 // מתיישבות זו תחת זו ללא תלות באורך שם הקבוצה.
-// Column 1 = team info cluster (#+שם+דגל). Columns 2-6 = W/D/L/GD/Pts.
-const STATS_GRID = "minmax(0, 1.7fr) repeat(5, minmax(0, 1fr))";
+// Column 1 = team info cluster (#+שם+דגל) — מקבלת ~37% מהרוחב כדי שגם
+// שמות ארוכים ("דרום אפריקה") ייכנסו ללא חיתוך.
+// Columns 2-6 = W/D/L/GD/Pts — צרות יותר כי הערכים הם 1-2 ספרות.
+const STATS_GRID = "minmax(0, 3fr) repeat(5, minmax(0, 1fr))";
 
 // ============================================================
 // Inner table content — shared between card + static views
