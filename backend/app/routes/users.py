@@ -52,13 +52,27 @@ def _tournament_has_started() -> bool:
 
 class UserScoreOut(BaseModel):
     total_points: int = 0
+    # group_stage_pts נשמר ל-backward compat: סכום של group_match_pts + group_standings_pts.
     group_stage_pts: int = 0
+    # פיצול של "בתים" לשתי קטגוריות — לתצוגת הבועות בעמוד הפרופיל.
+    group_match_pts: int = 0       # ניחושי משחקי בתים (source_type='match_group')
+    group_standings_pts: int = 0   # דירוגי בתים (source_type starts with 'group_position'/'group_perfect')
     knockout_pts: int = 0
     awards_pts: int = 0
     double_down_pts: int = 0
     correct_count: int = 0
     total_predictions: int = 0
     rank: int | None = None
+
+
+class GroupBreakdownItem(BaseModel):
+    """ניקוד שצבר משתמש בבית בודד — לתצוגת ניקוד-לפי-בית בעמוד הפרופיל."""
+    group_name: str                # "A".."L"
+    match_pts: int = 0             # סך match_group events של המשתמש על משחקי הבית
+    standings_pts: int = 0         # group_position_X + group_perfect_X
+    matches_finished: int = 0      # 0..6
+    matches_total: int = 6
+    is_complete: bool = False
 
 
 class ProfileMatchPredictionOut(BaseModel):
@@ -115,6 +129,8 @@ class UserProfileOut(BaseModel):
     is_owner: bool
     tournament_has_started: bool
     score: UserScoreOut
+    # ניקוד-לפי-בית — תמיד 12 פריטים (A..L) או ריק אם הטורניר עדיין לא התחיל
+    per_group: list[GroupBreakdownItem] = []
     # אם tournament_has_started=False ולא is_me → רשימות יהיו ריקות
     match_predictions: list[ProfileMatchPredictionOut] = []
     group_predictions: list[ProfileGroupPredictionOut] = []
@@ -228,6 +244,71 @@ def get_user_profile(
         .execute()
     )
     matches_by_id = {m["id"]: m for m in (matches_res.data or [])}
+
+    # ============================
+    # Group breakdown — חישוב מ-score_events:
+    # 1) פיצול "בתים" ל-group_match_pts (match_group) + group_standings_pts (group_position/group_perfect)
+    # 2) per_group: לכל בית A..L — סכום match + standings + כמות משחקים שהסתיימו
+    # READ ONLY מוחלט — אין שינוי בטבלת scores ולא בנתוני המשתמש.
+    # ============================
+    events_res = (
+        supabase_admin.table("score_events")
+        .select("source_type, source_ref, points")
+        .eq("user_id", target["id"])
+        .execute()
+    )
+    group_match_pts_total = 0
+    group_standings_pts_total = 0
+    per_group_acc: dict[str, dict[str, int]] = {
+        chr(ord("A") + i): {"match_pts": 0, "standings_pts": 0} for i in range(12)
+    }
+    for ev in events_res.data or []:
+        st = ev.get("source_type") or ""
+        pts = int(ev.get("points") or 0)
+        ref = str(ev.get("source_ref") or "")
+        if st == "match_group":
+            # source_ref = match_id → ממפים לבית דרך matches_by_id
+            try:
+                mid = int(ref)
+            except ValueError:
+                continue
+            m = matches_by_id.get(mid)
+            g = (m or {}).get("group_name")
+            if g and g in per_group_acc:
+                per_group_acc[g]["match_pts"] += pts
+                group_match_pts_total += pts
+        elif st.startswith("group_position_") or st.startswith("group_perfect_"):
+            # source_type מסתיים באות הבית; source_ref גם הוא אות הבית (לפי scoring.py)
+            g = ref if ref in per_group_acc else (st.rsplit("_", 1)[-1] if len(st.rsplit("_", 1)) == 2 else "")
+            if g in per_group_acc:
+                per_group_acc[g]["standings_pts"] += pts
+                group_standings_pts_total += pts
+
+    # סוכרים כמה משחקים הסתיימו לכל בית — לתצוגת ה-progress (X/6)
+    finished_by_group: dict[str, int] = {g: 0 for g in per_group_acc}
+    for m in matches_by_id.values():
+        if m.get("stage") == "group" and m.get("status") == "finished":
+            g = m.get("group_name")
+            if g in finished_by_group:
+                finished_by_group[g] += 1
+
+    per_group_list: list[GroupBreakdownItem] = [
+        GroupBreakdownItem(
+            group_name=g,
+            match_pts=per_group_acc[g]["match_pts"],
+            standings_pts=per_group_acc[g]["standings_pts"],
+            matches_finished=finished_by_group[g],
+            matches_total=6,
+            is_complete=(finished_by_group[g] >= 6),
+        )
+        for g in sorted(per_group_acc.keys())
+    ]
+
+    # מעדכנים את score_out עם השדות החדשים (group_stage_pts הקיים נשאר כסכום)
+    score_out = score_out.model_copy(update={
+        "group_match_pts": group_match_pts_total,
+        "group_standings_pts": group_standings_pts_total,
+    })
 
     pred_match_rows = (
         supabase_admin.table("predictions_matches")
@@ -347,6 +428,7 @@ def get_user_profile(
         is_owner=is_owner,
         tournament_has_started=started,
         score=score_out,
+        per_group=per_group_list,
         match_predictions=match_preds,
         group_predictions=group_preds,
         tournament_predictions=tournament_preds,

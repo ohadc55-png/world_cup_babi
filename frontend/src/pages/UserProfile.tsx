@@ -20,7 +20,7 @@ import { useUserProfile } from "@/hooks/useUserProfile";
 import { getTeamInfo } from "@/lib/teams";
 import { Logo } from "@/components/layout/Logo";
 import { PageBackground } from "@/components/layout/PageBackground";
-import type { ProfileMatchPrediction, ProfileGroupPrediction, ProfileTournament, Stage } from "@/types";
+import type { GroupBreakdownItem, ProfileMatchPrediction, ProfileGroupPrediction, ProfileTournament, Stage } from "@/types";
 
 type Tab = "matches" | "groups" | "longterm";
 
@@ -92,6 +92,14 @@ export function UserProfile() {
         <main className="px-5 pt-3">
           {/* === Profile card === */}
           <ProfileHeader profile={profile} />
+
+          {/* === Per-group breakdown === */}
+          {profile.per_group && profile.per_group.length > 0 && (
+            <PerGroupSection
+              items={profile.per_group}
+              onClickGroup={(g) => navigate(`/group/${g}`)}
+            />
+          )}
 
           {/* === Tabs === */}
           <div className="mt-5 grid grid-cols-3 gap-1.5">
@@ -205,13 +213,15 @@ function ProfileHeader({ profile }: { profile: ReturnType<typeof useUserProfile>
         </div>
       </div>
 
-      {/* Breakdown chips */}
+      {/* Breakdown chips — 5 קטגוריות:
+          "בתים" של scoring.py מפוצל פה ל-group_match_pts + group_standings_pts */}
       {score.total_points > 0 && (
-        <div className="mt-4 grid grid-cols-4 gap-2">
-          <StatChip label="בתים" value={score.group_stage_pts} color="#06A77D" />
+        <div className="mt-4 grid grid-cols-5 gap-1.5">
+          <StatChip label="מ. בתים" value={score.group_match_pts} color="#06A77D" />
+          <StatChip label="ד. בתים" value={score.group_standings_pts} color="#3DDC97" />
           <StatChip label="פלייאוף" value={score.knockout_pts} color="#5B9EFF" />
           <StatChip label="פרסים" value={score.awards_pts} color="#FFD93D" />
-          <StatChip label="DD" value={score.double_down_pts} color="#FF7A85" icon={<Flame size={10} />} />
+          <StatChip label="בונוס" value={score.double_down_pts} color="#FF7A85" icon={<Flame size={10} />} />
         </div>
       )}
     </motion.section>
@@ -237,6 +247,126 @@ function StatChip({ label, value, color, icon }: { label: string; value: number;
     </div>
   );
 }
+
+// ============================================================
+// PerGroupSection — ניקוד-לפי-בית (גריד 2×6 כרטיסים A..L)
+// ============================================================
+// כל כרטיס מציג: אות הבית, סכום נקודות (משחקים + דירוג), והתקדמות (4/6).
+// בית סגור (6/6) מקבל גוון זהוב + ה-standings מופיע נפרד.
+// לחיצה על כרטיס פותחת את עמוד הבית.
+
+function PerGroupSection({
+  items,
+  onClickGroup,
+}: {
+  items: GroupBreakdownItem[];
+  onClickGroup: (groupName: string) => void;
+}) {
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, delay: 0.05 }}
+      className="mt-4"
+    >
+      {/* Section header */}
+      <div className="mb-2.5 flex items-baseline justify-between px-1">
+        <h2
+          className="text-[11px] font-extrabold uppercase"
+          style={{ color: "#FFD93D", letterSpacing: "0.22em" }}
+        >
+          ניקוד לפי בית
+        </h2>
+        <span className="text-[9.5px] text-white/40">לחיצה לפתיחת הבית</span>
+      </div>
+      <div
+        className="mb-3 h-px w-full"
+        style={{
+          background:
+            "linear-gradient(90deg, rgba(255,217,61,0.40) 0%, rgba(255,217,61,0.06) 60%, transparent 100%)",
+        }}
+      />
+
+      {/* 2×6 grid */}
+      <div className="grid grid-cols-2 gap-1.5">
+        {items.map((g) => (
+          <GroupBreakdownCard key={g.group_name} g={g} onClick={() => onClickGroup(g.group_name)} />
+        ))}
+      </div>
+    </motion.section>
+  );
+}
+
+function GroupBreakdownCard({
+  g,
+  onClick,
+}: {
+  g: GroupBreakdownItem;
+  onClick: () => void;
+}) {
+  const totalPts = g.match_pts + g.standings_pts;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="grid items-center gap-2 rounded-xl px-2.5 py-2 text-end no-tap transition-transform active:scale-[0.985]"
+      style={{
+        gridTemplateColumns: "28px 1fr auto",
+        background: g.is_complete
+          ? "linear-gradient(135deg, rgba(255,217,61,0.10), rgba(6,167,125,0.05))"
+          : "rgba(20,27,45,0.45)",
+        border: `1px solid ${g.is_complete ? "rgba(255,217,61,0.40)" : "rgba(255,255,255,0.06)"}`,
+        backdropFilter: "blur(8px)",
+        WebkitBackdropFilter: "blur(8px)",
+      }}
+    >
+      {/* Group letter badge */}
+      <div
+        className="grid h-6 w-6 place-items-center rounded-md text-[12px] font-extrabold"
+        style={{
+          background: g.is_complete ? "#FFD93D" : "rgba(255,255,255,0.10)",
+          color: g.is_complete ? "#1A1300" : "rgba(255,255,255,0.85)",
+        }}
+      >
+        {g.group_name}
+      </div>
+
+      {/* Middle column: match + standings split (when complete) or progress (when in progress) */}
+      <div className="min-w-0 text-end">
+        {g.is_complete ? (
+          <p className="text-[9.5px] text-white/55 leading-tight">
+            <span className="num font-bold text-white/85">{g.match_pts}</span> משחקים
+            {g.standings_pts > 0 && (
+              <>
+                {" · "}
+                <span className="num font-bold text-[#FFD93D]">{g.standings_pts}</span> דירוג
+              </>
+            )}
+          </p>
+        ) : (
+          <p className="num text-[10px] text-white/45 leading-tight">
+            <span className="font-bold text-white/70">{g.matches_finished}</span>/{g.matches_total} משחקים
+          </p>
+        )}
+      </div>
+
+      {/* Total points */}
+      <div className="text-end" style={{ direction: "ltr" }}>
+        <span
+          className="num text-[16px] font-extrabold num-tight leading-none"
+          style={{
+            color: totalPts > 0 ? (g.is_complete ? "#FFD93D" : "#06A77D") : "rgba(255,255,255,0.30)",
+            letterSpacing: "-0.03em",
+          }}
+        >
+          {totalPts}
+        </span>
+        <span className="ms-0.5 text-[8.5px] font-medium text-white/40">נק'</span>
+      </div>
+    </button>
+  );
+}
+
 
 // ============================================================
 // HiddenUntilStart — חשיפה רק כשהמונדיאל מתחיל

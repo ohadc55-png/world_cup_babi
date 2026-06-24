@@ -286,13 +286,27 @@ export type MemberTournamentPrediction = {
 
 export type UserScore = {
   total_points: number;
+  // group_stage_pts נשמר ל-backward compat: סכום של group_match_pts + group_standings_pts
   group_stage_pts: number;
+  // פיצול "בתים" לשתי בועות בעמוד הפרופיל
+  group_match_pts: number;       // ניחושי משחקי בתים
+  group_standings_pts: number;   // דירוגי בתים
   knockout_pts: number;
   awards_pts: number;
   double_down_pts: number;
   correct_count: number;
   total_predictions: number;
   rank: number | null;
+};
+
+// ניקוד-לפי-בית של משתמש (12 פריטים A..L) — לתצוגה בעמוד הפרופיל
+export type GroupBreakdownItem = {
+  group_name: string;            // "A".."L"
+  match_pts: number;             // נקודות ממשחקי הבית
+  standings_pts: number;         // נקודות מדירוג הבית (מופיע רק לבית סגור 6/6)
+  matches_finished: number;      // 0..6
+  matches_total: number;         // תמיד 6
+  is_complete: boolean;
 };
 
 export type ProfileMatchPrediction = {
@@ -393,6 +407,7 @@ export type UserProfile = {
   is_owner: boolean;
   tournament_has_started: boolean;
   score: UserScore;
+  per_group: GroupBreakdownItem[];   // 12 פריטים A..L (ריק אם הטורניר עוד לא התחיל)
   match_predictions: ProfileMatchPrediction[];
   group_predictions: ProfileGroupPrediction[];
   tournament_predictions: ProfileTournament | null;
