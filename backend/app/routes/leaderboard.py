@@ -231,12 +231,16 @@ def get_leaderboard_timeline(
     """
     Bumps Chart — איך הדירוג של חברי הקבוצה התפתח לאורך 5 המשחקים האחרונים.
 
-    Read-only מוחלט. ארבע שאילתות SELECT בלבד:
+    Read-only מוחלט. חמש שאילתות SELECT בלבד:
       1) matches  — 5 משחקים שהסתיימו, מהאחרון לראשון (ואז reverse).
-      2) users    — חברי game_id של המשתמש המאומת.
-      3) score_events — כל ה-events של חברי הקבוצה (לצורך cumulative points
-                        עד כל checkpoint לפי computed_at).
-      4) predictions_matches — לכל (member, checkpoint_match) — לסיווג result.
+      2) matches  — id+finished_at של *כל* המשחקים המסוימים, לצורך מיפוי
+                    event.source_ref ↔ זמן הסיום של המשחק (חשוב כי scoring
+                    רץ כמה שניות אחרי שה-row מתעדכן ל-finished — אם נסתמך
+                    על computed_at של ה-event הוא ייפול אחרי ה-cutoff של
+                    ה-checkpoint שלו עצמו).
+      3) users    — חברי game_id של המשתמש המאומת.
+      4) score_events — כל ה-events של חברי הקבוצה.
+      5) predictions_matches — לכל (member, checkpoint_match) — לסיווג result.
 
     מחזיר checkpoints=[], members=[] אם אין game_id או אם הסתיימו פחות מ-2 משחקים.
     """
@@ -273,7 +277,32 @@ def get_leaderboard_timeline(
     match_ids = [m["id"] for m in recent_matches]
     finished_ats = [m["finished_at"] for m in recent_matches]
 
-    # 2) חברי הקבוצה של המשתמש המאומת בלבד (game_id scope)
+    # 2) מיפוי match_id → finished_at לכל המשחקים המסוימים — לשימוש כ-"effective time"
+    # של score_events שמשויכים למשחק. בלי זה, scoring שרץ אחרי finished_at של
+    # המשחק היה נחתך מה-checkpoint שלו (הניקוד הופיע רק ב-checkpoint הבא).
+    # נוסף: מיפוי group_letter → finished_at של המשחק האחרון בבית, ל-score_events
+    # של דירוג הבית (group_position_X / group_perfect_X) שנכתבים שניות אחרי
+    # finished_at של המשחק ה-6 בבית.
+    all_finished_result = (
+        supabase_admin.table("matches")
+        .select("id, finished_at, stage, group_name")
+        .eq("status", "finished")
+        .execute()
+    )
+    match_finished_by_id: dict[str, str] = {}
+    group_max_finished: dict[str, str] = {}
+    for m in (all_finished_result.data or []):
+        fa = m.get("finished_at")
+        if not fa:
+            continue
+        match_finished_by_id[str(m["id"])] = fa
+        if m.get("stage") == "group" and m.get("group_name"):
+            g = m["group_name"]
+            prev = group_max_finished.get(g)
+            if prev is None or fa > prev:
+                group_max_finished[g] = fa
+
+    # 3) חברי הקבוצה של המשתמש המאומת בלבד (game_id scope)
     members_result = (
         supabase_admin.table("users")
         .select("id, username, avatar_url")
@@ -287,20 +316,33 @@ def get_leaderboard_timeline(
     member_ids = [m["id"] for m in members_rows]
     user_meta: dict[str, dict] = {m["id"]: m for m in members_rows}
 
-    # 3) כל ה-score_events של חברי הקבוצה (בלוק אחד, אין לולאת N×5)
+    # 4) כל ה-score_events של חברי הקבוצה (בלוק אחד, אין לולאת N×5)
     events_result = (
         supabase_admin.table("score_events")
-        .select("user_id, points, computed_at")
+        .select("user_id, points, computed_at, source_type, source_ref")
         .in_("user_id", member_ids)
         .execute()
     )
     events_by_user: dict[str, list[dict]] = {uid: [] for uid in member_ids}
     for ev in events_result.data or []:
         uid = ev["user_id"]
-        if uid in events_by_user:
-            events_by_user[uid].append(ev)
+        if uid not in events_by_user:
+            continue
+        # effective_time — הזמן "האפקטיבי" של האירוע לצורך החתך ב-checkpoint:
+        # - match-typed (match_group/r32/.../double_down_bonus): finished_at של המשחק
+        # - group_position_X / group_perfect_X: finished_at של המשחק האחרון בבית
+        # - awards_* / longterm_* / שאר: fallback ל-computed_at
+        src_ref = str(ev.get("source_ref") or "")
+        src_type = str(ev.get("source_type") or "")
+        eff = match_finished_by_id.get(src_ref)
+        if not eff and (src_type.startswith("group_position_") or src_type.startswith("group_perfect_")):
+            # אות הבית: ב-source_ref (לפי scoring.py), עם נפילה ל-suffix של source_type
+            g = src_ref if src_ref in group_max_finished else src_type.rsplit("_", 1)[-1]
+            eff = group_max_finished.get(g)
+        ev["effective_time"] = eff or ev.get("computed_at") or ""
+        events_by_user[uid].append(ev)
 
-    # 4) predictions_matches של (member × match) — לסיווג result
+    # 5) predictions_matches של (member × match) — לסיווג result
     preds_result = (
         supabase_admin.table("predictions_matches")
         .select("user_id, match_id, points_breakdown")
@@ -313,18 +355,19 @@ def get_leaderboard_timeline(
         pred_by_key[(p["user_id"], p["match_id"])] = p
 
     # ---- חישוב cumulative pts ל-(member, checkpoint) ----
-    # לכל משתמש: ממיינים את ה-events לפי computed_at ועוברים שילוב לכל checkpoint.
+    # לכל משתמש: ממיינים את ה-events לפי effective_time (finished_at של המשחק
+    # אם זה אירוע משחק, אחרת computed_at כ-fallback) ועוברים לכל checkpoint.
     pts_by_user: dict[str, list[int]] = {}
     for uid in member_ids:
         sorted_events = sorted(
             events_by_user[uid],
-            key=lambda e: e["computed_at"] or "",
+            key=lambda e: e["effective_time"],
         )
         per_checkpoint: list[int] = []
         cumulative = 0
         idx = 0
         for cutoff in finished_ats:
-            while idx < len(sorted_events) and (sorted_events[idx]["computed_at"] or "") <= cutoff:
+            while idx < len(sorted_events) and sorted_events[idx]["effective_time"] <= cutoff:
                 cumulative += int(sorted_events[idx]["points"] or 0)
                 idx += 1
             per_checkpoint.append(cumulative)
