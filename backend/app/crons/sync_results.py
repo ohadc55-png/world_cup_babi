@@ -67,22 +67,98 @@ def fetch_active_matches() -> list[dict]:
     return result.data or []
 
 
+def _is_placeholder_team(team_name: Optional[str]) -> bool:
+    """מזהה אם שם הקבוצה הוא placeholder של פלייאוף (W##, L##, 1A, 2B, 3A/B/C/D/F).
+
+    אם True — המשחק עדיין לא resolved (bracket_resolver לא הריץ עליו עוד), אז
+    אין טעם לחפש אותו ב-ESPN.
+    """
+    if not team_name:
+        return True
+    n = team_name.strip()
+    if not n:
+        return True
+    # W74 / L101 — מנצח/מפסיד משחק קודם
+    if n[0] in ("W", "L") and n[1:].isdigit():
+        return True
+    # 1A / 2B / 3C / 4D — מקום בקבוצה
+    if len(n) == 2 and n[0] in "1234" and n[1].isalpha():
+        return True
+    # 3A/B/C/D/F — מקום שלישי הטוב ביותר מבית שבחר
+    if n[0] == "3" and "/" in n:
+        return True
+    return False
+
+
+def _try_map_espn_id(match: dict) -> Optional[str]:
+    """אם משחק חסר external_id אבל הקבוצות אמיתיות — מנסה למצוא את ה-ESPN event
+    ע"י סריקה של ה-scoreboard לתאריך ה-kickoff והשוואת שמות.
+
+    Idempotent: לא כותב כלום. מחזיר ESPN id (str) או None.
+    מחיר: שאילתת HTTP אחת ל-ESPN (פר ניסיון).
+    """
+    from datetime import datetime
+
+    from app.crons.map_espn_ids import _names_match
+    from app.services import espn
+
+    team_home = match.get("team_home")
+    team_away = match.get("team_away")
+    if _is_placeholder_team(team_home) or _is_placeholder_team(team_away):
+        return None  # עוד לא resolved — אין טעם לחפש
+
+    kickoff_str = match.get("kickoff_utc")
+    if not kickoff_str:
+        return None
+    try:
+        kickoff = datetime.fromisoformat(kickoff_str.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+    events = espn.fetch_scoreboard(kickoff.date())
+    for ev in events:
+        same_order = (
+            _names_match(team_home, ev["team_home"])
+            and _names_match(team_away, ev["team_away"])
+        )
+        flipped = (
+            _names_match(team_home, ev["team_away"])
+            and _names_match(team_away, ev["team_home"])
+        )
+        if same_order or flipped:
+            return ev["espn_id"]
+    return None
+
+
 def fetch_match_result_from_api(match: dict) -> Optional[dict]:
     """
-    שולף תוצאה חיה מ-ESPN דרך external_id שעודכן ע"י crons/map_espn_ids.py.
+    שולף תוצאה חיה מ-ESPN דרך external_id.
+
+    אם external_id חסר אבל הקבוצות אמיתיות (post bracket-resolver) —
+    מנסה לאתר את ה-ESPN event לבד ולשמור אותו לקראת הרצות הבאות.
 
     מחזיר None אם:
-    - אין external_id למשחק (משחק פלייאוף שעדיין לא ידועות בו הקבוצות)
-    - ESPN לא נגיש
+    - הקבוצות עדיין placeholder (W##/L##/1A/3A/B/C/D/F)
+    - ESPN לא מצא התאמה
     - אין שינוי משמעותי
-
-    אחרת מחזיר dict עם השדות שהקרון יודע לעבד.
     """
     from app.services import espn
 
     espn_id = match.get("external_id")
     if not espn_id:
-        return None
+        # Auto-mapping — קורה ל-R16+ אחרי שה-bracket_resolver מילא קבוצות אמיתיות
+        espn_id = _try_map_espn_id(match)
+        if not espn_id:
+            return None
+        # Cache בלייב — שאר הריצות יעברו מהר דרך external_id
+        try:
+            supabase_admin.table("matches").update({"external_id": espn_id}).eq(
+                "id", match["id"]
+            ).execute()
+            match["external_id"] = espn_id
+            logger.info(f"auto-mapped match #{match['id']} → ESPN {espn_id}")
+        except Exception as e:
+            logger.warning(f"failed to cache external_id for match #{match['id']}: {e}")
 
     espn_result = espn.fetch_match_by_id(espn_id)
     if not espn_result:
