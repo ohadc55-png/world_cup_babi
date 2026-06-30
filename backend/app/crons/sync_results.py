@@ -51,20 +51,40 @@ class MatchSyncResult(TypedDict, total=False):
 
 
 def fetch_active_matches() -> list[dict]:
-    """משחקים שצריך לבדוק עכשיו: live, scheduled-soon, או finished-recently."""
+    """משחקים שצריך לבדוק עכשיו:
+      (א) משחקים שה-kickoff שלהם בחלון [now-3h, now+2h] עם status scheduled/live, ו-
+      (ב) *כל* משחק שעדיין status='live' — גם אם ה-kickoff שלו מחוץ לחלון
+           (משחקים שנכנסו להארכה/פנדלים/דחיות גורמים לזה ויקלעו אחרת חצוצים).
+
+    שתי שאילתות נפרדות + dedup ב-id. עלות זניחה (בפלייאוף ~32 משחקים סה"כ).
+    """
     now = _now()
     window_start = (now - SYNC_WINDOW_AFTER).isoformat()
     window_end = (now + SYNC_WINDOW_BEFORE).isoformat()
 
-    result = (
+    in_window = (
         supabase_admin.table("matches")
         .select("*")
         .gte("kickoff_utc", window_start)
         .lte("kickoff_utc", window_end)
         .in_("status", ["scheduled", "live"])
         .execute()
-    )
-    return result.data or []
+    ).data or []
+
+    live_any = (
+        supabase_admin.table("matches")
+        .select("*")
+        .eq("status", "live")
+        .execute()
+    ).data or []
+
+    # Dedup by match id (in_window + live_any יכולים לחפוף)
+    by_id: dict[int, dict] = {}
+    for m in in_window:
+        by_id[m["id"]] = m
+    for m in live_any:
+        by_id.setdefault(m["id"], m)
+    return list(by_id.values())
 
 
 def _is_placeholder_team(team_name: Optional[str]) -> bool:
