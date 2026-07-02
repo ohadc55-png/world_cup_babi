@@ -468,6 +468,12 @@ function MatchPredRow({ pred, isMe }: { pred: ProfileMatchPrediction; isMe: bool
     }
   }
 
+  // DD מכפיל ×2 — מציגים את הסך הכולל (בסיס + בונוס) כדי שיתאים למה שנצבר בפועל
+  const effectivePoints =
+    pred.points_earned !== null && pred.has_double_down
+      ? pred.points_earned * 2
+      : pred.points_earned;
+
   return (
     <div
       className="rounded-xl px-3 py-2.5"
@@ -525,10 +531,15 @@ function MatchPredRow({ pred, isMe }: { pred: ProfileMatchPrediction; isMe: bool
           )}
         </div>
 
-        {pred.points_earned !== null && (
+        {effectivePoints !== null && (
           <div className="flex items-center gap-1">
+            {pred.has_double_down && (pred.points_earned ?? 0) > 0 && (
+              <span className="num text-[9.5px] font-medium text-[color:var(--color-muted)]">
+                ({pred.points_earned}×2)
+              </span>
+            )}
             <span className="num text-[13px] font-extrabold num-tight" style={{ color: pointsColor }}>
-              {pred.points_earned > 0 ? `+${pred.points_earned}` : pred.points_earned}
+              {effectivePoints > 0 ? `+${effectivePoints}` : effectivePoints}
             </span>
             <span className="text-[9.5px] text-[color:var(--color-muted)]">נק׳</span>
           </div>

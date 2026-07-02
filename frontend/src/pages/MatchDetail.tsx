@@ -554,7 +554,7 @@ function PredictionRow({
         )}
       </div>
 
-      {/* Points (if finished) */}
+      {/* Points (if finished) — DD מכפיל ×2, מציגים את הסך הכולל */}
       {isFinished && (
         <div
           className="num shrink-0 grid h-9 min-w-[44px] place-items-center rounded-lg text-[14px] font-extrabold"
@@ -568,7 +568,9 @@ function PredictionRow({
               : "1px solid rgba(255,255,255,0.06)",
           }}
         >
-          {pred.points_earned != null ? `+${pred.points_earned}` : "—"}
+          {pred.points_earned != null
+            ? `+${pred.has_double_down ? pred.points_earned * 2 : pred.points_earned}`
+            : "—"}
         </div>
       )}
     </div>
