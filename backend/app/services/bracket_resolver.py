@@ -73,10 +73,15 @@ def _compute_group_table(group_name: str) -> Optional[list[dict]]:
 
 
 def _winner_loser_of(match_id: int) -> Optional[tuple[str, str]]:
-    """מחזיר (winner, loser) של משחק נוקאאוט שהסתיים, או None אם עוד לא נגמר."""
+    """מחזיר (winner, loser) של משחק נוקאאוט שהסתיים, או None אם עוד לא נגמר.
+
+    שים לב: score_home/away הם תוצאת 90 הדקות (חוק הניקוד). משחק שהוכרע
+    בהארכה נשמר כתיקו ללא פנדלים — אז נופלים ל-ESPN לתוצאה הסופית (כולל
+    הארכה) רק לקביעת העולה.
+    """
     res = (
         supabase_admin.table("matches")
-        .select("team_home,team_away,score_home,score_away,score_home_pen,score_away_pen,status")
+        .select("team_home,team_away,score_home,score_away,score_home_pen,score_away_pen,status,external_id")
         .eq("id", match_id)
         .limit(1)
         .execute()
@@ -93,13 +98,24 @@ def _winner_loser_of(match_id: int) -> Optional[tuple[str, str]]:
     if a > h:
         return (m["team_away"], m["team_home"])
 
-    # שוויון — מכריעים בפנדלים
+    # שוויון ב-90' — מכריעים בפנדלים
     hp, ap = m.get("score_home_pen"), m.get("score_away_pen")
     if hp is not None and ap is not None:
         if hp > ap:
             return (m["team_home"], m["team_away"])
         if ap > hp:
             return (m["team_away"], m["team_home"])
+
+    # תיקו ב-90' בלי פנדלים ⇒ הוכרע בהארכה. שולפים מ-ESPN את התוצאה הסופית.
+    if m.get("external_id"):
+        from app.services import espn
+        info = espn.fetch_match_by_id(m["external_id"])
+        if info and info.get("is_completed"):
+            fh, fa = info.get("score_home_final"), info.get("score_away_final")
+            if fh is not None and fa is not None and fh != fa:
+                if fh > fa:
+                    return (m["team_home"], m["team_away"])
+                return (m["team_away"], m["team_home"])
     return None
 
 

@@ -40,8 +40,15 @@ class EspnMatchResult(TypedDict, total=False):
     espn_id: str
     status: InternalStatus
     is_completed: bool
+    # חוק הבית: ניקוד לפי 90 דקות בלבד. לכן במשחק שהסתיים אחרי הארכה,
+    # score_home/away הם תוצאת ה-90 דקות (H1+H2 מ-linescores) ולא התוצאה הסופית.
+    # במשחק חי — התוצאה הרצה כרגיל (כולל הארכה, לתצוגת live).
     score_home: Optional[int]
     score_away: Optional[int]
+    # התוצאה הסופית כולל הארכה — לקביעת העולה בברקט כשתיקו ב-90' ואין פנדלים.
+    score_home_final: Optional[int]
+    score_away_final: Optional[int]
+    went_extra_time: bool
     score_home_pen: Optional[int]   # NULL אם אין shootout
     score_away_pen: Optional[int]
     team_home: str                  # שם הקבוצה לפי ESPN (לבדיקת mapping)
@@ -69,6 +76,27 @@ def _parse_competitor(comp: dict) -> tuple[str, Optional[int], Optional[int], st
     if pen_score is not None:
         pen_score = int(pen_score)
     return team_name, score, pen_score, comp.get("homeAway", "")
+
+
+def _regulation_score(comp: dict) -> Optional[int]:
+    """תוצאת 90 הדקות של קבוצה אחת, מתוך linescores.
+
+    מבנה linescores: [מחצית1, מחצית2, (הארכה1), (הארכה2), (פנדלים)].
+    מחזיר H1+H2, או None אם אין שתי מחציות תקינות (ואז נופלים ל-score הרגיל).
+    """
+    ls = comp.get("linescores") or []
+    if len(ls) < 2:
+        return None
+    vals = []
+    for entry in ls[:2]:
+        v = entry.get("displayValue") if isinstance(entry, dict) else None
+        if v is None and isinstance(entry, dict):
+            v = entry.get("value")
+        try:
+            vals.append(int(float(v)))
+        except (TypeError, ValueError):
+            return None
+    return vals[0] + vals[1]
 
 
 def _parse_event(event: dict) -> Optional[EspnMatchResult]:
@@ -111,12 +139,31 @@ def _parse_event(event: dict) -> Optional[EspnMatchResult]:
 
         venue = competition.get("venue", {}).get("fullName")
 
+        is_completed = bool(status_data.get("completed", False))
+
+        # === חוק 90 הדקות ===
+        # ESPN מחזיר ב-score את התוצאה הסופית כולל הארכה. הניקוד אצלנו נקבע
+        # לפי 90 דקות בלבד, אז במשחק שהסתיים גוזרים את תוצאת ה-90' מ-linescores.
+        # אם המשחק נגמר בזמן רגיל — H1+H2 == score ואין שינוי בפועל.
+        score_home_final, score_away_final = score_home, score_away
+        went_extra_time = False
+        if is_completed:
+            reg_home = _regulation_score(home_comp)
+            reg_away = _regulation_score(away_comp)
+            if reg_home is not None and reg_away is not None:
+                went_extra_time = (reg_home, reg_away) != (score_home, score_away) \
+                    or pen_home is not None
+                score_home, score_away = reg_home, reg_away
+
         return EspnMatchResult(
             espn_id=str(event["id"]),
             status=status,
-            is_completed=bool(status_data.get("completed", False)),
+            is_completed=is_completed,
             score_home=score_home,
             score_away=score_away,
+            score_home_final=score_home_final,
+            score_away_final=score_away_final,
+            went_extra_time=went_extra_time,
             score_home_pen=pen_home,
             score_away_pen=pen_away,
             team_home=team_home,

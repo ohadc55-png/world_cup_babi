@@ -545,10 +545,12 @@ def calculate_match_score(match_id: int) -> dict:
         }).eq("id", pred["id"]).execute()
 
         # === Double Down bonus (אם יש token פעיל) ===
-        if base_pts > 0:  # אין טעם להכפיל 0
-            dd_token = _get_active_double_down(user_id, match_id)
-            if dd_token:
-                dd_bonus = base_pts * (constants.DOUBLE_DOWN_MULTIPLIER - 1)
+        # הטוקן מסומן used גם כשהניחוש הרוויח 0 — אחרת הוא נשאר "תלוי" במצב
+        # active לנצח על משחק שכבר נגמר. score_event נכתב רק לבונוס חיובי.
+        dd_token = _get_active_double_down(user_id, match_id)
+        if dd_token:
+            dd_bonus = base_pts * (constants.DOUBLE_DOWN_MULTIPLIER - 1)
+            if dd_bonus > 0:
                 dd_added = _add_score_event(
                     user_id=user_id,
                     source_type="double_down_bonus",
@@ -556,9 +558,9 @@ def calculate_match_score(match_id: int) -> dict:
                     points=dd_bonus,
                     reason=f"DD token {dd_token['round_key']}: ×{constants.DOUBLE_DOWN_MULTIPLIER} on match {match_id}",
                 )
-                _finalize_double_down(dd_token["id"], dd_bonus)
                 if dd_added:
                     summary["double_down_bonuses"] += dd_bonus
+            _finalize_double_down(dd_token["id"], dd_bonus)
 
     # === רענון aggregations ===
     for uid in affected_users:
