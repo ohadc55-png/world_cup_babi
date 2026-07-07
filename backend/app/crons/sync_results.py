@@ -112,12 +112,16 @@ def _is_placeholder_team(team_name: Optional[str]) -> bool:
 
 def _try_map_espn_id(match: dict) -> Optional[str]:
     """אם משחק חסר external_id אבל הקבוצות אמיתיות — מנסה למצוא את ה-ESPN event
-    ע"י סריקה של ה-scoreboard לתאריך ה-kickoff והשוואת שמות.
+    ע"י סריקת scoreboard והשוואת שמות.
+
+    חשוב: ESPN מסווג משחקים לתאריכים לפי שעון אמריקאי — משחק שמתחיל ב-00:00/01:00
+    UTC מופיע אצלם תחת התאריך הקודם (זה מה שתקע את מקסיקו-אנגליה וארה"ב-בלגיה).
+    לכן סורקים את יום ה-kickoff וגם את היום שלפניו ואחריו.
 
     Idempotent: לא כותב כלום. מחזיר ESPN id (str) או None.
-    מחיר: שאילתת HTTP אחת ל-ESPN (פר ניסיון).
+    מחיר: עד 3 שאילתות HTTP ל-ESPN (פר ניסיון, רק כשאין external_id).
     """
-    from datetime import datetime
+    from datetime import datetime, timedelta
 
     from app.crons.map_espn_ids import _names_match
     from app.services import espn
@@ -135,18 +139,20 @@ def _try_map_espn_id(match: dict) -> Optional[str]:
     except ValueError:
         return None
 
-    events = espn.fetch_scoreboard(kickoff.date())
-    for ev in events:
-        same_order = (
-            _names_match(team_home, ev["team_home"])
-            and _names_match(team_away, ev["team_away"])
-        )
-        flipped = (
-            _names_match(team_home, ev["team_away"])
-            and _names_match(team_away, ev["team_home"])
-        )
-        if same_order or flipped:
-            return ev["espn_id"]
+    for day_offset in (0, -1, 1):
+        target = kickoff.date() + timedelta(days=day_offset)
+        events = espn.fetch_scoreboard(target)
+        for ev in events:
+            same_order = (
+                _names_match(team_home, ev["team_home"])
+                and _names_match(team_away, ev["team_away"])
+            )
+            flipped = (
+                _names_match(team_home, ev["team_away"])
+                and _names_match(team_away, ev["team_home"])
+            )
+            if same_order or flipped:
+                return ev["espn_id"]
     return None
 
 
