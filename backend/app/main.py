@@ -1,6 +1,7 @@
 """FastAPI entry point for Mundial 2026."""
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -37,13 +38,21 @@ logger = logging.getLogger(__name__)
 # IMPORTANT: assumes single-replica deployment. If Railway ever scales to
 # multiple instances, each will run these jobs — add a DB advisory lock then.
 
+# Watchdog: a hung socket inside fn (e.g. a push provider that never answers)
+# would otherwise freeze that job's loop forever — the thread can't be killed,
+# but timing out lets the next cycle run instead of silently stopping syncs.
+JOB_TIMEOUT_SECONDS = 600
+
+
 async def _every(seconds: int, name: str, fn) -> None:
     """Run sync fn() every `seconds` seconds; errors don't kill the loop."""
     await asyncio.sleep(20)  # let startup settle before first run
     while True:
         try:
-            result = await asyncio.to_thread(fn)
+            result = await asyncio.wait_for(asyncio.to_thread(fn), timeout=JOB_TIMEOUT_SECONDS)
             logger.info(f"[scheduler] {name}: {result}")
+        except asyncio.TimeoutError:
+            logger.error(f"[scheduler] {name} timed out after {JOB_TIMEOUT_SECONDS}s (will retry next cycle)")
         except Exception:
             logger.exception(f"[scheduler] {name} crashed (will retry next cycle)")
         await asyncio.sleep(seconds)
@@ -104,4 +113,9 @@ app.include_router(tournament_routes.router)
 
 @app.get("/health", tags=["meta"])
 def health() -> dict[str, str]:
-    return {"status": "ok", "env": settings.ENVIRONMENT}
+    return {
+        "status": "ok",
+        "env": settings.ENVIRONMENT,
+        # Railway injects the deployed commit — lets us verify which code is live
+        "version": os.getenv("RAILWAY_GIT_COMMIT_SHA", "unknown")[:12],
+    }

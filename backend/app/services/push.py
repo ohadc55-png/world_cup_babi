@@ -19,6 +19,7 @@ import json
 import logging
 from typing import Any, Optional, TypedDict
 
+import requests
 from pywebpush import WebPushException, webpush
 
 from app.core.config import settings
@@ -68,8 +69,14 @@ def send_push_to_subscription(
             data=json.dumps(payload, ensure_ascii=False),
             vapid_private_key=settings.VAPID_PRIVATE_KEY,
             vapid_claims=_vapid_claims(),
+            # בלי timeout, endpoint שלא עונה תוקע את ה-thread לנצח — ומקפיא
+            # את לולאת ה-sync כולה (pywebpush לא שם timeout כברירת מחדל)
+            timeout=10,
         )
         return True, None
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"WebPush transport error (non-fatal): {e}")
+        return False, str(e)
     except WebPushException as e:
         # 410 = Gone (subscription לא תקף יותר); 404 = endpoint לא קיים
         status_code = getattr(e.response, "status_code", None) if e.response else None

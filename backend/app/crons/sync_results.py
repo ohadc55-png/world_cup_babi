@@ -299,6 +299,7 @@ ESPN_TO_DB_TEAM_NAME = {
     "United States": "USA",   # ESPN sometimes uses this for USMNT
     "USA": "USA",
     "Congo DR": "DR Congo",   # POR v DR Congo (#61): ESPN flipped the word order
+    "Türkiye": "Turkey",      # TUR v USA (#23): ESPN uses the FIFA name
 }
 
 
@@ -309,8 +310,12 @@ def _normalize_espn_team_name(espn_name: str) -> str:
 
 def _sync_match_events(match: dict) -> dict:
     """
-    Fetch goals + red cards from ESPN for a match and upsert into match_events.
-    Idempotent via UNIQUE (match_id, espn_event_id).
+    Fetch goals + red cards from ESPN for a match and reconcile match_events:
+    upsert what's in the feed (idempotent via UNIQUE match_id,espn_event_id)
+    and delete rows whose espn_event_id is no longer in the feed — ESPN drops
+    VAR-cancelled goals, and without the delete they linger as ghost events.
+    Deletion only runs on a successful ESPN response (fetch failure → None →
+    no writes at all), and never touches rows with NULL espn_event_id.
     Returns counts; caller may log/ignore.
     """
     from app.services import espn
@@ -319,9 +324,10 @@ def _sync_match_events(match: dict) -> dict:
     if not espn_id:
         return {"goals": 0, "red_cards": 0, "skipped": "no_external_id"}
 
-    goals, red_cards = espn.fetch_match_events(espn_id)
-    if not goals and not red_cards:
-        return {"goals": 0, "red_cards": 0}
+    fetched = espn.fetch_match_events(espn_id)
+    if fetched is None:
+        return {"goals": 0, "red_cards": 0, "skipped": "espn_fetch_failed"}
+    goals, red_cards = fetched
 
     match_id = match["id"]
     team_home_name = match["team_home"]
@@ -377,7 +383,31 @@ def _sync_match_events(match: dict) -> dict:
             rows, on_conflict="match_id,espn_event_id"
         ).execute()
 
-    return {"goals": len(goals), "red_cards": len(red_cards), "written": len(rows)}
+    # Reconcile: delete events that vanished from the ESPN feed (VAR removals).
+    # The feed-id set includes events skipped above on team-name mismatch, so a
+    # broken alias can't cascade into deleting a previously-written row.
+    feed_ids = {e["espn_event_id"] for e in goals + red_cards if e.get("espn_event_id")}
+    existing = (
+        supabase_admin.table("match_events")
+        .select("id, espn_event_id, event_type, minute, primary_player")
+        .eq("match_id", match_id)
+        .not_.is_("espn_event_id", "null")
+        .execute()
+    ).data or []
+    stale = [ev for ev in existing if ev["espn_event_id"] not in feed_ids]
+    for ev in stale:
+        logger.warning(
+            f"match {match_id}: deleting ghost event no longer in ESPN feed — "
+            f"{ev['event_type']} {ev['minute']} {ev['primary_player']} (espn_event_id={ev['espn_event_id']})"
+        )
+        supabase_admin.table("match_events").delete().eq("id", ev["id"]).execute()
+
+    return {
+        "goals": len(goals),
+        "red_cards": len(red_cards),
+        "written": len(rows),
+        "deleted_ghosts": len(stale),
+    }
 
 
 def backfill_all_match_events() -> dict:

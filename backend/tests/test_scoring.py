@@ -197,28 +197,30 @@ def test_compute_knockout_advancer_pen_draw_raises():
 
 # ============================================================
 # Penalty shootout — score_knockout_match cases
-# דוגמה: USA 2(4) vs Brazil 2(5) - זמן רגיל 2-2, פנדלים 4-5, Brazil עברה
+# כלל 2026-05-25: הכיוון נקבע לפי 90 הדקות בלבד (תיקו = "X").
+# פנדלים קובעים רק מי עולה (compute_knockout_advancer) — לא ניקוד.
+# דוגמה: USA 2(4) vs Brazil 2(5) — הכיוון הנכון הוא "X", לא "2".
 # ============================================================
 
 @pytest.mark.parametrize("stage,pred_dir,pred_h,pred_a,ah,aa,hp,ap,expected,reason", [
-    # R32 (10 + 5) + penalties
-    ("r32", "2", 2, 2, 2, 2, 4, 5, 15, "R32 pred=2 exact=2-2, away wins pens: 10+5"),
-    ("r32", "1", 2, 2, 2, 2, 5, 4, 15, "R32 pred=1 exact=2-2, home wins pens"),
-    ("r32", "1", 1, 0, 1, 1, 4, 3, 10, "R32 pred=1 wrong score, home wins on pens: 10 only"),
-    ("r32", "2", 1, 0, 1, 1, 3, 4, 10, "R32 pred=2 wrong score, away wins on pens"),
-    ("r32", "1", 2, 2, 2, 2, 4, 5, 0,  "R32 pred=1 but away won on pens"),
+    # R32 (10 + 5): תיקו ב-90' = הכיוון הוא X, לא משנה מי לקח את הפנדלים
+    ("r32", "X", 2, 2, 2, 2, 4, 5, 15, "R32 pred=X exact=2-2: 10+5, pens irrelevant"),
+    ("r32", "X", 1, 1, 2, 2, 5, 4, 10, "R32 pred=X wrong score: 10 only"),
+    ("r32", "1", 2, 2, 2, 2, 5, 4, 0,  "R32 pred=1 but 90' was a draw: 0 even if home won pens"),
+    ("r32", "2", 1, 0, 1, 1, 3, 4, 0,  "R32 pred=2 but 90' was a draw: 0 even if away won pens"),
+    ("r32", "1", 2, 2, 2, 2, 4, 5, 0,  "R32 pred=1, 90' draw: 0"),
 
-    # SF (35 + 15) + penalties
-    ("sf", "1", 1, 1, 1, 1, 5, 3, 50, "SF pred=1 exact=1-1, home wins pens: 35+15"),
-    ("sf", "2", 0, 0, 0, 0, 3, 5, 50, "SF pred=2 exact=0-0, away wins pens"),
+    # SF (35 + 15)
+    ("sf", "X", 1, 1, 1, 1, 5, 3, 50, "SF pred=X exact=1-1: 35+15, pens irrelevant"),
+    ("sf", "1", 0, 0, 0, 0, 5, 3, 0,  "SF pred=1 but 90' draw: 0 despite home winning pens"),
 
-    # Final (50 + 50) + penalties
-    ("final", "1", 2, 2, 2, 2, 5, 3, 100, "Final pred=1 exact=2-2, home wins pens: 50+50"),
-    ("final", "2", 1, 1, 1, 1, 3, 5, 100, "Final pred=2 exact=1-1, away wins pens: 50+50"),
-    ("final", "1", 3, 2, 1, 1, 5, 3, 50,  "Final pred=1 wrong score, home wins pens: 50"),
+    # Final (50 + 50)
+    ("final", "X", 2, 2, 2, 2, 5, 3, 100, "Final pred=X exact=2-2: 50+50"),
+    ("final", "X", 0, 0, 1, 1, 3, 5, 50,  "Final pred=X wrong score: 50 only"),
+    ("final", "1", 3, 2, 1, 1, 5, 3, 0,   "Final pred=1 but 90' draw: 0"),
 
-    # Third place (35 + 15) + penalties
-    ("third_place", "1", 1, 1, 1, 1, 4, 2, 50, "3rd place exact 1-1 + pens: 35+15"),
+    # Third place (35 + 15)
+    ("third_place", "X", 1, 1, 1, 1, 4, 2, 50, "3rd place pred=X exact 1-1: 35+15"),
 ])
 def test_score_knockout_with_penalties(
     stage, pred_dir, pred_h, pred_a, ah, aa, hp, ap, expected, reason
@@ -230,10 +232,13 @@ def test_score_knockout_with_penalties(
     assert pts == expected, f"Failed: {reason} → got {pts} expected {expected}"
 
 
-def test_score_knockout_draw_without_pens_raises():
-    """Knockout match with regular-time draw + no penalty scores = data error."""
-    with pytest.raises(ValueError, match="no penalty"):
-        score_knockout_match("1", 1, 1, 1, 1, stage="r32")
+def test_score_knockout_draw_without_pens_is_valid():
+    """משחק שהוכרע בהארכה נשמר אצלנו כתיקו של 90' עם pens=NULL —
+    זה מצב תקין (m#82 בלגיה-סנגל) והניקוד מחושב לפי ה-90' בלבד."""
+    pts, breakdown = score_knockout_match("X", 2, 2, 2, 2, stage="r32")
+    assert pts == 15, "pred=X exact=2-2 on an ET-decided match: 10+5"
+    pts, _ = score_knockout_match("1", 1, 1, 1, 1, stage="r32")
+    assert pts == 0, "pred=1 on a 90' draw scores 0 even without pens data"
 
 
 # ============================================================

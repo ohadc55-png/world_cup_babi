@@ -446,12 +446,14 @@ def fetch_tournament_leaders() -> dict[str, list[EspnLeader]]:
     return result
 
 
-def fetch_match_events(espn_id: str) -> tuple[list[EspnGoalEvent], list[EspnRedCardEvent]]:
+def fetch_match_events(espn_id: str) -> tuple[list[EspnGoalEvent], list[EspnRedCardEvent]] | None:
     """
     שולף summary ומחזיר (goals, red_cards).
     Goals מ-header.competitions[0].details[] לפי scoringPlay=True.
     Red cards מ-keyEvents[] לפי type.text == 'Red Card'.
-    מחזיר ([], []) אם ה-fetch נכשל. שגיאות parse של פלאיי בודד נבלעות בלי
+    מחזיר None אם ה-fetch נכשל — הקורא חייב להבדיל בין כשל רשת לבין תשובה
+    תקינה ריקה: ה-reconciliation מוחק אירועים שנעלמו מהפיד (VAR), ואסור
+    שכשל זמני יימחק טיימליין שלם. שגיאות parse של פלאיי בודד נבלעות בלי
     להפיל את שאר הרשימה.
     """
     url = ESPN_BASE + "/summary"
@@ -462,7 +464,7 @@ def fetch_match_events(espn_id: str) -> tuple[list[EspnGoalEvent], list[EspnRedC
             data = r.json()
     except httpx.HTTPError as e:
         logger.error(f"ESPN summary fetch failed for events {espn_id}: {e}")
-        return ([], [])
+        return None
 
     goals: list[EspnGoalEvent] = []
     red_cards: list[EspnRedCardEvent] = []
