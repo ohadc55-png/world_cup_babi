@@ -139,10 +139,19 @@ def get_all_long_term_predictions(
     ).data or []
     pred_by_user = {p["user_id"]: p for p in preds}
 
+    # מצב ה-actuals הידוע כרגע — פעם אחת לכל הבקשה (read-only)
+    from app.schemas.prediction import LongTermPointsBreakdown
+    from app.services import scoring
+    known_actuals = scoring.compute_known_longterm_actuals()
+
     # שלב 3: build response — כולל גם משתמשים בלי ניחוש (כל השדות None)
     out: list[MemberTournamentPrediction] = []
     for uid, m in member_by_id.items():
         p = pred_by_user.get(uid, {})
+        # נקודות per-slot רק אם למשתמש יש ניחוש כלשהו
+        points = None
+        if p:
+            points = LongTermPointsBreakdown(**scoring.compute_longterm_points_display(p, known_actuals))
         out.append(MemberTournamentPrediction(
             user_id=uid,
             username=m["username"],
@@ -159,6 +168,7 @@ def get_all_long_term_predictions(
             top_assister=p.get("top_assister"),
             top_assister_canonical=p.get("top_assister_canonical"),
             golden_ball=p.get("golden_ball"),
+            points=points,
         ))
     # מיון לפי username לעקביות בתצוגה
     out.sort(key=lambda x: x.username)

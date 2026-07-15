@@ -278,6 +278,24 @@ export type MemberTournamentPrediction = {
   top_assister: string | null;
   top_assister_canonical: string | null;
   golden_ball: string | null;
+  // נקודות per-slot. null (או שדה חסר) = הקטגוריה עוד לא נקבעה (pending);
+  // מספר = נקבעה (0 אם שגוי, אחרת הניקוד).
+  points: LongTermPointsBreakdown | null;
+};
+
+export type LongTermPointsBreakdown = {
+  winner: number | null;
+  finalist_1: number | null;
+  finalist_2: number | null;
+  finalists_bonus: number | null;
+  semifinalist_1: number | null;
+  semifinalist_2: number | null;
+  semifinalist_3: number | null;
+  semifinalist_4: number | null;
+  semifinalists_bonus: number | null;
+  top_scorer: number | null;
+  top_assister: number | null;
+  golden_ball: number | null;
 };
 
 // ============================================

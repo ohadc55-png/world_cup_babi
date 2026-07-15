@@ -93,6 +93,28 @@ class TournamentPredictionsOut(TournamentPredictionsUpsert):
     points_breakdown: dict[str, Any] | None = None
 
 
+class LongTermPointsBreakdown(BaseModel):
+    """
+    נקודות per-slot לניחוש טווח-ארוך — לתצוגת "מי ניחש מה" (טאב לפי משתתף).
+
+    ערך None = הקטגוריה עדיין לא נקבעה (pending → מציגים "—"), int = נקבעה
+    (0 אם שגוי, אחרת הניקוד). הפיינליסטיות/חצי-גמרניות מפורקות ל-slot בודד
+    + בונוס נפרד, כך שהסכום מתלכד בדיוק לניקוד הקטגורי.
+    """
+    winner: int | None = None
+    finalist_1: int | None = None
+    finalist_2: int | None = None
+    finalists_bonus: int | None = None
+    semifinalist_1: int | None = None
+    semifinalist_2: int | None = None
+    semifinalist_3: int | None = None
+    semifinalist_4: int | None = None
+    semifinalists_bonus: int | None = None
+    top_scorer: int | None = None
+    top_assister: int | None = None
+    golden_ball: int | None = None
+
+
 class MemberTournamentPrediction(BaseModel):
     """
     ניחושי טווח-ארוך של חבר אחר בקבוצה — לתצוגת "מי ניחש מה".
@@ -117,6 +139,9 @@ class MemberTournamentPrediction(BaseModel):
     top_assister: str | None = None
     top_assister_canonical: str | None = None
     golden_ball: str | None = None
+    # נקודות לכל slot לתצוגת "מי ניחש מה". None = הקטגוריה עוד לא נקבעה (pending),
+    # int = נקבעה (0 אם שגוי, אחרת הניקוד). הפיינליסטיות/חצי-גמרניות כוללות בונוס נפרד.
+    points: "LongTermPointsBreakdown | None" = None
 
 
 # ============================================

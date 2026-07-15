@@ -12,11 +12,20 @@
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from typing import Literal, Optional, TypedDict
 
 from app.core import constants
 from app.db.supabase import supabase_admin
+
+# placeholder של הברקט (W74 / L82 / 1A / 3B / F) — קבוצה שעדיין לא פוענחה
+_BRACKET_PLACEHOLDER_RE = re.compile(r"^(W\d+|L\d+|\d[A-F]|[A-F])$")
+
+
+def _is_real_team(name: Optional[str]) -> bool:
+    """True רק אם זו קבוצה אמיתית (לא placeholder ריק/W##/1A וכו')."""
+    return bool(name) and not _BRACKET_PLACEHOLDER_RE.match(name)
 
 logger = logging.getLogger(__name__)
 
@@ -608,6 +617,17 @@ def calculate_match_score(match_id: int) -> dict:
         except Exception as e:
             logger.warning(f"Bracket resolution failed after knockout (non-fatal): {e}")
 
+    # === אוטו-טריגר: אחרי SF/Final → לנקד קטגוריות טווח-ארוך שנקבעו ===
+    # רץ *אחרי* פענוח הברקט למעלה, כך שמשחק הגמר כבר מלא בשתי הפיינליסטיות.
+    # אידמפוטנטי — מנקד רק מה שחדש (חצי-גמרניות/פיינליסטיות/אלופה).
+    if stage in ("sf", "final"):
+        try:
+            lt_summary = finalize_longterm_predictions()
+            if lt_summary.get("scored_events", 0) > 0:
+                summary["longterm_finalized"] = lt_summary
+        except Exception as e:
+            logger.warning(f"Long-term finalization failed (non-fatal): {e}")
+
     # === Push: תוצאת משחק + שינויי דירוג (per-game) ===
     # מבודד ב-try כדי שלא תפיל את כל החישוב אם push נכשל
     try:
@@ -911,3 +931,210 @@ def calculate_tournament_predictions_score(actuals: TournamentActuals) -> dict:
         _refresh_user_scores(uid)
 
     return summary
+
+
+# ============================================================
+# === Partial long-term finalization (during the tournament) =
+# ============================================================
+# calculate_tournament_predictions_score דורש את התמונה המלאה (סוף טורניר).
+# הפונקציות למטה מנקדות כל קטגוריה *ברגע שהיא נקבעת* (חצי-גמרניות כשידועות
+# 4 הקבוצות, פיינליסטיות כששני משחקי החצי נגמרו, אלופה אחרי הגמר) — כדי
+# שהניקוד יעודכן אוטומטית ולא רק בסוף. אידמפוטנטי לחלוטין: משתמש באותם
+# source_type/source_ref כמו הפונקציה הסופית, אז ריצה כפולה לא מכפילה, וגם
+# הריצה הסופית תדלג על מה שכבר נוקד כאן.
+
+# breakdown_key → (source_type, source_ref) — זהה ל-calculate_tournament_predictions_score
+_LONGTERM_CATEGORY_MAP = {
+    "champion": ("awards_champion", "champion"),
+    "both_finalists": ("awards_finalists", "finalists"),
+    "one_finalist": ("awards_finalists", "finalists"),
+    "semifinalists_each": ("awards_semifinalists", "semifinalists_each"),
+    "all_4_semifinalists_bonus": ("awards_semifinalists", "semifinalists_bonus"),
+    "top_scorer": ("awards_top_scorer", "top_scorer"),
+    "top_assister": ("awards_top_assister", "top_assister"),
+    "golden_ball": ("awards_golden_ball", "golden_ball"),
+}
+
+# breakdown_key → איזו קטגוריה צריכה להיות "determined" כדי לכתוב אותו
+_LONGTERM_CATEGORY_GROUP = {
+    "champion": "champion",
+    "both_finalists": "finalists",
+    "one_finalist": "finalists",
+    "semifinalists_each": "semifinalists",
+    "all_4_semifinalists_bonus": "semifinalists",
+    # פרסים (top_scorer/assister/golden_ball) נקבעים ידנית בסוף — לא כאן
+}
+
+
+def compute_known_longterm_actuals() -> dict:
+    """
+    מחזיר את מצב ה"actuals" הידוע כרגע לקטגוריות טווח-ארוך. read-only.
+
+    {
+      "semifinalists": set[str] | None,   # 4 קבוצות החצי (None אם עוד לא ידועות)
+      "finalists":     set[str] | None,   # 2 קבוצות הגמר (None אם עוד לא ידועות)
+      "champion":      str | None,        # אלופה (None אם הגמר לא נגמר/לא הוכרע)
+    }
+    """
+    # חצי-גמרניות — 4 הקבוצות במשחקי stage='sf'
+    sf = (
+        supabase_admin.table("matches")
+        .select("team_home, team_away")
+        .eq("stage", "sf")
+        .execute()
+    ).data or []
+    sf_teams = {t for m in sf for t in (m["team_home"], m["team_away"]) if _is_real_team(t)}
+    semifinalists = sf_teams if len(sf_teams) == 4 else None
+
+    # פיינליסטיות + אלופה — משחק הגמר (stage='final')
+    finalists: Optional[set] = None
+    champion: Optional[str] = None
+    fin = (
+        supabase_admin.table("matches")
+        .select("team_home, team_away, status, score_home, score_away, score_home_pen, score_away_pen")
+        .eq("stage", "final")
+        .execute()
+    ).data or []
+    if fin:
+        fm = fin[0]
+        if _is_real_team(fm["team_home"]) and _is_real_team(fm["team_away"]):
+            finalists = {fm["team_home"], fm["team_away"]}
+            if fm["status"] == "finished" and fm["score_home"] is not None:
+                try:
+                    adv = compute_knockout_advancer(
+                        fm["score_home"], fm["score_away"],
+                        fm.get("score_home_pen"), fm.get("score_away_pen"),
+                    )
+                    champion = fm["team_home"] if adv == "1" else fm["team_away"]
+                except ValueError:
+                    # גמר שהוכרע בהארכה ונשמר כתיקו בלי פנדלים — יוכרע ידנית בסוף
+                    champion = None
+
+    return {"semifinalists": semifinalists, "finalists": finalists, "champion": champion}
+
+
+def finalize_longterm_predictions() -> dict:
+    """
+    מנקד אוטומטית את קטגוריות הטווח-הארוך שכבר נקבעו (חצי-גמרניות/פיינליסטיות/
+    אלופה). אידמפוטנטי. נקרא מ-calculate_match_score אחרי משחקי sf/final.
+    פרסים (מלך שערים/בישולים/כדור זהב) לא כאן — נקבעים ידנית בסוף הטורניר.
+    """
+    known = compute_known_longterm_actuals()
+    determined = {
+        "semifinalists": known["semifinalists"] is not None,
+        "finalists": known["finalists"] is not None,
+        "champion": known["champion"] is not None,
+    }
+    if not any(determined.values()):
+        return {"determined": determined, "scored_events": 0, "users": 0}
+
+    # actuals מלא — קטגוריות לא-ידועות מקבלות sentinel שלא יכול להתאים לשום ניחוש
+    _S = "\x00sentinel"
+    actuals = TournamentActuals(
+        champion=known["champion"] or _S,
+        finalists=tuple(known["finalists"]) if known["finalists"] else (_S, _S + "2"),
+        semifinalists=tuple(known["semifinalists"]) if known["semifinalists"] else (_S, _S + "2", _S + "3", _S + "4"),
+        top_scorer=_S, top_assister=_S, golden_ball=_S,
+    )
+
+    preds = supabase_admin.table("predictions_tournament").select("*").execute().data or []
+    affected: set[str] = set()
+    events_written = 0
+
+    for pred in preds:
+        uid = pred["user_id"]
+        _pts, breakdown = score_tournament_predictions(
+            pred_winner=pred.get("winner"),
+            pred_finalist_1=pred.get("finalist_1"),
+            pred_finalist_2=pred.get("finalist_2"),
+            pred_semifinalist_1=pred.get("semifinalist_1"),
+            pred_semifinalist_2=pred.get("semifinalist_2"),
+            pred_semifinalist_3=pred.get("semifinalist_3"),
+            pred_semifinalist_4=pred.get("semifinalist_4"),
+            pred_top_scorer=pred.get("top_scorer"),
+            pred_top_assister=pred.get("top_assister"),
+            pred_golden_ball=pred.get("golden_ball"),
+            actuals=actuals,
+        )
+
+        determined_total = 0
+        determined_breakdown: dict = {}
+        for bkey, group in _LONGTERM_CATEGORY_GROUP.items():
+            if not determined.get(group):
+                continue
+            cat_pts = breakdown.get(bkey, 0)
+            if cat_pts <= 0:
+                continue
+            determined_total += cat_pts
+            determined_breakdown[bkey] = cat_pts
+            source_type, ref = _LONGTERM_CATEGORY_MAP[bkey]
+            if _add_score_event(uid, source_type, ref, cat_pts, f"Long-term: {bkey}"):
+                events_written += 1
+
+        # points_earned/breakdown — רק החלק שנקבע (יוחלף בתמונה מלאה בסוף הטורניר)
+        supabase_admin.table("predictions_tournament").update({
+            "points_earned": determined_total,
+            "points_breakdown": determined_breakdown,
+        }).eq("user_id", uid).execute()
+        affected.add(uid)
+
+    for uid in affected:
+        _refresh_user_scores(uid)
+
+    return {"determined": determined, "scored_events": events_written, "users": len(affected)}
+
+
+def compute_longterm_points_display(pred: dict, known: Optional[dict] = None) -> dict:
+    """
+    ניקוד לכל *slot* בניחוש טווח-ארוך — לתצוגת "מי ניחש מה". read-only.
+    ערך None = הקטגוריה עדיין לא נקבעה (pending). int = נקבעה (0 או הניקוד).
+
+    פירוק לכל slot שמסתכם בדיוק לניקוד הקטגורי:
+      פיינליסטיות: 40 לכל אחת נכונה + 20 בונוס אם שתיהן  (40+40+20=100 / 40 / 0)
+      חצי-גמרניות: 20 לכל אחת נכונה + 20 בונוס אם כל 4
+      אלופה/פרסים: הערך המלא אם נכון, אחרת 0
+    """
+    known = known or compute_known_longterm_actuals()
+    semis = known["semifinalists"]
+    finalists = known["finalists"]
+    champion = known["champion"]
+
+    def team_slot(pick: Optional[str], actual_set: Optional[set], per: int) -> Optional[int]:
+        if actual_set is None:
+            return None  # pending
+        if not pick:
+            return 0
+        return per if pick in actual_set else 0
+
+    # פיינליסטיות
+    f1 = team_slot(pred.get("finalist_1"), finalists, constants.LONGTERM_ONE_FINALIST)
+    f2 = team_slot(pred.get("finalist_2"), finalists, constants.LONGTERM_ONE_FINALIST)
+    finalists_bonus: Optional[int] = None
+    if finalists is not None:
+        both = bool(f1) and bool(f2)
+        finalists_bonus = constants.LONGTERM_BOTH_FINALISTS - 2 * constants.LONGTERM_ONE_FINALIST if both else 0
+
+    # חצי-גמרניות
+    s = [team_slot(pred.get(f"semifinalist_{i}"), semis, constants.LONGTERM_SEMIFINALIST_EACH) for i in range(1, 5)]
+    semis_bonus: Optional[int] = None
+    if semis is not None:
+        all4 = all(bool(x) for x in s)
+        semis_bonus = constants.LONGTERM_ALL_4_SEMIFINALISTS_BONUS if all4 else 0
+
+    winner_pts = None if champion is None else (constants.LONGTERM_CHAMPION if pred.get("winner") == champion else 0)
+
+    # פרסים — נקבעים ידנית בסוף; כרגע תמיד pending
+    return {
+        "winner": winner_pts,
+        "finalist_1": f1,
+        "finalist_2": f2,
+        "finalists_bonus": finalists_bonus,
+        "semifinalist_1": s[0],
+        "semifinalist_2": s[1],
+        "semifinalist_3": s[2],
+        "semifinalist_4": s[3],
+        "semifinalists_bonus": semis_bonus,
+        "top_scorer": None,
+        "top_assister": None,
+        "golden_ball": None,
+    }

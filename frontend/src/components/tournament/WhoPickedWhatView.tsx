@@ -279,10 +279,29 @@ function UserView({ preds }: { preds: MemberTournamentPrediction[] }) {
   );
 }
 
+// item = בחירה בודדת עם הניקוד שלה (pts: null=pending, number=determined)
+type SlotItem = { value: string; pts: number | null };
+
 function UserCard({ pred }: { pred: MemberTournamentPrediction }) {
-  const finalists = [pred.finalist_1, pred.finalist_2].filter(Boolean) as string[];
-  const semis = [pred.semifinalist_1, pred.semifinalist_2, pred.semifinalist_3, pred.semifinalist_4]
-    .filter(Boolean) as string[];
+  const pts = pred.points;
+  const finalists: SlotItem[] = [
+    { value: pred.finalist_1, pts: pts?.finalist_1 ?? null },
+    { value: pred.finalist_2, pts: pts?.finalist_2 ?? null },
+  ].filter((x) => x.value) as SlotItem[];
+  const semis: SlotItem[] = [
+    { value: pred.semifinalist_1, pts: pts?.semifinalist_1 ?? null },
+    { value: pred.semifinalist_2, pts: pts?.semifinalist_2 ?? null },
+    { value: pred.semifinalist_3, pts: pts?.semifinalist_3 ?? null },
+    { value: pred.semifinalist_4, pts: pts?.semifinalist_4 ?? null },
+  ].filter((x) => x.value) as SlotItem[];
+
+  // סה"כ נקודות טווח-ארוך שנקבעו עד כה (סכום כל השדות המספריים)
+  const total = pts
+    ? Object.values(pts).reduce<number>((sum, v) => sum + (typeof v === "number" ? v : 0), 0)
+    : 0;
+  const hasDetermined = pts
+    ? Object.values(pts).some((v) => typeof v === "number")
+    : false;
 
   return (
     <div
@@ -305,67 +324,115 @@ function UserCard({ pred }: { pred: MemberTournamentPrediction }) {
       >
         <UserBadge username={pred.username} avatarUrl={pred.avatar_url} large />
         <span className="truncate text-[14px] font-extrabold text-white">{pred.username}</span>
+        {hasDetermined && (
+          <span
+            className="ms-auto num rounded-full px-2.5 py-1 text-[12px] font-extrabold"
+            style={{ background: "rgba(255,217,61,0.14)", border: "1px solid rgba(255,217,61,0.35)", color: "#FFD93D" }}
+          >
+            {total} נק׳
+          </span>
+        )}
       </div>
 
       {/* Rows */}
       <div className="flex flex-col">
-        <UserCardRow label="אלופה" value={pred.winner} isTeam Icon={Crown} accent="#FFD93D" />
-        <UserCardRow label="פיינליסטיות" values={finalists} isTeam Icon={Medal} accent="#C8D0DD" />
-        <UserCardRow label="חצי-גמרניות" values={semis} isTeam Icon={Star} accent="#9BBAEA" />
+        <UserCardRow
+          label="אלופה"
+          items={pred.winner ? [{ value: pred.winner, pts: pts?.winner ?? null }] : []}
+          isTeam Icon={Crown} accent="#FFD93D"
+        />
+        <UserCardRow
+          label="פיינליסטיות" items={finalists} isTeam Icon={Medal} accent="#C8D0DD"
+          bonus={pts?.finalists_bonus ?? null}
+        />
+        <UserCardRow
+          label="חצי-גמרניות" items={semis} isTeam Icon={Star} accent="#9BBAEA"
+          bonus={pts?.semifinalists_bonus ?? null}
+        />
         <UserCardRow
           label="מלך שערים"
-          value={pred.top_scorer_canonical || pred.top_scorer}
-          isTeam={false}
-          Icon={Goal}
-          accent="#06A77D"
+          items={(pred.top_scorer_canonical || pred.top_scorer)
+            ? [{ value: (pred.top_scorer_canonical || pred.top_scorer)!, pts: pts?.top_scorer ?? null }] : []}
+          isTeam={false} Icon={Goal} accent="#06A77D"
         />
         <UserCardRow
           label="מלך בישולים"
-          value={pred.top_assister_canonical || pred.top_assister}
-          isTeam={false}
-          Icon={Goal}
-          accent="#06A77D"
+          items={(pred.top_assister_canonical || pred.top_assister)
+            ? [{ value: (pred.top_assister_canonical || pred.top_assister)!, pts: pts?.top_assister ?? null }] : []}
+          isTeam={false} Icon={Goal} accent="#06A77D"
         />
-        <UserCardRow label="כדור הזהב" value={pred.golden_ball} isTeam={false} Icon={Trophy} accent="#FFD93D" />
+        <UserCardRow
+          label="כדור הזהב"
+          items={pred.golden_ball ? [{ value: pred.golden_ball, pts: pts?.golden_ball ?? null }] : []}
+          isTeam={false} Icon={Trophy} accent="#FFD93D"
+        />
       </div>
     </div>
   );
 }
 
+// pill נקודות: null=pending (לא מציג), 0=אפור, חיובי=ירוק
+function PointsPill({ pts }: { pts: number | null }) {
+  if (pts === null) return null;
+  const positive = pts > 0;
+  return (
+    <span
+      className="num shrink-0 rounded-full px-1.5 py-0.5 text-[10.5px] font-extrabold"
+      style={
+        positive
+          ? { background: "rgba(6,167,125,0.18)", border: "1px solid rgba(6,167,125,0.45)", color: "#3DDC97" }
+          : { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "var(--color-muted)" }
+      }
+    >
+      {positive ? `+${pts}` : "0"}
+    </span>
+  );
+}
+
 function UserCardRow({
-  label, value, values, isTeam, Icon, accent,
+  label, items, isTeam, Icon, accent, bonus = null,
 }: {
   label: string;
-  value?: string | null;
-  values?: string[];
+  items: SlotItem[];
   isTeam: boolean;
   Icon: typeof Trophy;
   accent: string;
+  bonus?: number | null;
 }) {
-  const list = values ?? (value ? [value] : []);
   return (
     <div
-      className="flex items-center gap-2.5 px-4 py-2.5"
+      className="flex items-start gap-2.5 px-4 py-2.5"
       style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}
     >
       <div
-        className="grid h-6 w-6 shrink-0 place-items-center rounded-md"
+        className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-md"
         style={{ background: `${accent}15`, border: `1px solid ${accent}35` }}
       >
         <Icon size={11} color={accent} />
       </div>
-      <span className="text-[11.5px] font-bold text-white/85">{label}</span>
+      <div className="flex shrink-0 items-center gap-1.5 pt-0.5">
+        <span className="text-[11.5px] font-bold text-white/85">{label}</span>
+        {bonus !== null && bonus > 0 && (
+          <span
+            className="num rounded-full px-1.5 py-0.5 text-[9.5px] font-extrabold"
+            style={{ background: "rgba(255,217,61,0.15)", border: "1px solid rgba(255,217,61,0.35)", color: "#FFD93D" }}
+          >
+            בונוס +{bonus}
+          </span>
+        )}
+      </div>
       <div className="flex flex-1 flex-wrap items-center justify-end gap-x-2 gap-y-1">
-        {list.length === 0 ? (
+        {items.length === 0 ? (
           <span className="text-[11px] text-[color:var(--color-muted)]">—</span>
         ) : (
-          list.map((v, i) => {
-            const team = isTeam ? getTeamInfo(v) : null;
-            const display = isTeam ? team!.he : v;
+          items.map((it, i) => {
+            const team = isTeam ? getTeamInfo(it.value) : null;
+            const display = isTeam ? team!.he : it.value;
             return (
-              <span key={`${v}-${i}`} className="inline-flex items-center gap-1">
+              <span key={`${it.value}-${i}`} className="inline-flex items-center gap-1">
                 {isTeam && <span className="text-[14px]">{team!.flag}</span>}
                 <span className="text-[12.5px] font-extrabold text-white">{display}</span>
+                <PointsPill pts={it.pts} />
               </span>
             );
           })

@@ -18,10 +18,12 @@ from app.services.scoring import (
     TournamentActuals,
     compute_direction,
     compute_knockout_advancer,
+    compute_longterm_points_display,
     score_group_match,
     score_group_standings,
     score_knockout_match,
     score_tournament_predictions,
+    _is_real_team,
     _normalize_player,
 )
 
@@ -444,3 +446,97 @@ def test_knockout_match_bounds(stage, max_pts):
     """תקרה לכל שלב פלייאוף."""
     pts, _ = score_knockout_match("1", 2, 1, 2, 1, stage)
     assert pts == max_pts
+
+
+# ============================================================
+# compute_longterm_points_display — per-slot points for "מי ניחש מה"
+# ============================================================
+
+def test_is_real_team():
+    assert _is_real_team("Spain")
+    assert _is_real_team("USA")
+    assert not _is_real_team("W102")   # bracket placeholder
+    assert not _is_real_team("L89")
+    assert not _is_real_team("3A")
+    assert not _is_real_team("F")
+    assert not _is_real_team(None)
+    assert not _is_real_team("")
+
+
+def _known(semis=None, finalists=None, champion=None):
+    return {"semifinalists": semis, "finalists": finalists, "champion": champion}
+
+
+def test_longterm_display_pending_when_undetermined():
+    """כשקטגוריה עוד לא נקבעה → None (pending), לא 0."""
+    pred = {"winner": "Spain", "finalist_1": "England", "finalist_2": "Spain",
+            "semifinalist_1": "Spain"}
+    out = compute_longterm_points_display(pred, _known())  # nothing determined
+    assert out["winner"] is None
+    assert out["finalist_1"] is None
+    assert out["semifinalist_1"] is None
+    assert out["finalists_bonus"] is None
+    assert out["semifinalists_bonus"] is None
+
+
+def test_longterm_display_finalists_one_correct():
+    """פיינליסטית אחת נכונה = 40 + 0, בלי בונוס."""
+    known = _known(finalists={"Spain", "Argentina"})
+    pred = {"finalist_1": "England", "finalist_2": "Spain"}
+    out = compute_longterm_points_display(pred, known)
+    assert out["finalist_1"] == 0
+    assert out["finalist_2"] == 40
+    assert out["finalists_bonus"] == 0
+    # sums to the category total (one finalist = 40)
+    assert out["finalist_1"] + out["finalist_2"] + out["finalists_bonus"] == 40
+
+
+def test_longterm_display_finalists_both_correct_sums_to_100():
+    """שתי פיינליסטיות נכונות = 40+40+20 בונוס = 100."""
+    known = _known(finalists={"Spain", "Argentina"})
+    pred = {"finalist_1": "Argentina", "finalist_2": "Spain"}
+    out = compute_longterm_points_display(pred, known)
+    assert out["finalist_1"] == 40
+    assert out["finalist_2"] == 40
+    assert out["finalists_bonus"] == 20
+    assert out["finalist_1"] + out["finalist_2"] + out["finalists_bonus"] == 100
+
+
+def test_longterm_display_semis_all_four_sums_to_100():
+    """4 חצי-גמרניות נכונות = 20×4 + 20 בונוס = 100."""
+    known = _known(semis={"France", "Spain", "England", "Argentina"})
+    pred = {"semifinalist_1": "Spain", "semifinalist_2": "France",
+            "semifinalist_3": "Argentina", "semifinalist_4": "England"}
+    out = compute_longterm_points_display(pred, known)
+    assert [out[f"semifinalist_{i}"] for i in range(1, 5)] == [20, 20, 20, 20]
+    assert out["semifinalists_bonus"] == 20
+    total = sum(out[f"semifinalist_{i}"] for i in range(1, 5)) + out["semifinalists_bonus"]
+    assert total == 100
+
+
+def test_longterm_display_semis_partial_no_bonus():
+    """3/4 חצי-גמרניות = 60, בלי בונוס."""
+    known = _known(semis={"France", "Spain", "England", "Argentina"})
+    pred = {"semifinalist_1": "Spain", "semifinalist_2": "France",
+            "semifinalist_3": "Argentina", "semifinalist_4": "Brazil"}
+    out = compute_longterm_points_display(pred, known)
+    assert [out[f"semifinalist_{i}"] for i in range(1, 5)] == [20, 20, 20, 0]
+    assert out["semifinalists_bonus"] == 0
+
+
+def test_longterm_display_champion_correct_and_wrong():
+    known = _known(champion="Spain")
+    assert compute_longterm_points_display({"winner": "Spain"}, known)["winner"] == 100
+    assert compute_longterm_points_display({"winner": "Brazil"}, known)["winner"] == 0
+    # empty pick on a determined category = 0, not None
+    assert compute_longterm_points_display({}, known)["winner"] == 0
+
+
+def test_longterm_display_awards_always_pending():
+    """פרסים נקבעים ידנית בסוף — תמיד None בתצוגה החלקית."""
+    known = _known(semis={"France", "Spain", "England", "Argentina"},
+                   finalists={"Spain", "Argentina"}, champion="Spain")
+    out = compute_longterm_points_display({"top_scorer": "Messi"}, known)
+    assert out["top_scorer"] is None
+    assert out["top_assister"] is None
+    assert out["golden_ball"] is None
