@@ -56,3 +56,23 @@ export function useAllTournamentPredictions(): HookResult<MemberTournamentPredic
 
   return { data, loading, error };
 }
+
+// אלופת הטורניר (מנצחת הגמר). נגזרת בשרת — כולל משחק שהוכרע בהארכה.
+export type Champion = { team: string | null; runner_up: string | null; finalized: boolean };
+
+export function useChampion(): HookResult<Champion> {
+  const [data, setData] = useState<Champion | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    api<Champion>("/api/tournament/champion")
+      .then((c) => { if (!cancelled) { setData(c); setError(null); } })
+      .catch((e) => { if (!cancelled) setError(e instanceof ApiException ? `שגיאה ${e.status}` : "שגיאת רשת"); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  return { data, loading, error };
+}

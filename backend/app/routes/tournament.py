@@ -34,6 +34,45 @@ def _fetch_top(category: str) -> list[PlayerStatOut]:
     return [PlayerStatOut(**r) for r in rows]
 
 
+# האלופה נקבעת פעם אחת בסוף — cache בזיכרון (הגמר לא משתנה יותר). למשחק
+# שהוכרע בהארכה (0-0 ב-90') הזוכה נגזר דרך ESPN ב-_winner_loser_of, אז לא
+# רוצים fetch חיצוני בכל קריאת עמוד. את ה-cache ממלאים רק כשהאלופה ידועה.
+_champion_cache: dict = {}
+
+
+@router.get("/champion")
+def get_champion(
+    response: Response,
+    _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+) -> dict:
+    """
+    אלופת הטורניר (מנצחת הגמר) + סגנית. team=None אם הגמר טרם הוכרע.
+    למשחק שהוכרע בהארכה — הזוכה נגזר דרך ESPN (score_home_final), כי
+    score_home/away שמורים כתוצאת 90' (0-0) ולא חושפים מנצח.
+    """
+    response.headers["Cache-Control"] = _NO_CACHE
+    if _champion_cache.get("team"):
+        return _champion_cache
+    final = (
+        supabase_admin.table("matches")
+        .select("id, status")
+        .eq("stage", "final")
+        .limit(1)
+        .execute()
+    ).data or []
+    if not final or final[0]["status"] != "finished":
+        return {"team": None, "runner_up": None, "finalized": False}
+    try:
+        from app.services.bracket_resolver import _winner_loser_of
+        res = _winner_loser_of(final[0]["id"])
+    except Exception:
+        res = None
+    out = {"team": res[0] if res else None, "runner_up": res[1] if res else None, "finalized": bool(res)}
+    if res:
+        _champion_cache.update(out)
+    return out
+
+
 @router.get("/top-scorers", response_model=list[PlayerStatOut])
 def get_top_scorers(
     response: Response,

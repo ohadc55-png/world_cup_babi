@@ -9,9 +9,10 @@
 import { useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Trophy } from "lucide-react";
+import { Trophy, Crown } from "lucide-react";
 import { useAllMatches } from "@/hooks/useMatches";
 import { useGroupStandings } from "@/hooks/useGroupStandings";
+import { useChampion } from "@/hooks/useTournamentPredictions";
 import { getTeamInfo } from "@/lib/teams";
 import { formatScore } from "@/lib/matchScore";
 import { Logo } from "@/components/layout/Logo";
@@ -38,6 +39,7 @@ const VALID_TOP: TopKind[] = ["scorers", "assisters"];
 export function Bracket() {
   const { data: allMatches, loading: matchesLoading } = useAllMatches();
   const { data: standings, loading: standingsLoading, error: standingsError } = useGroupStandings();
+  const { data: champion } = useChampion();
 
   // ברירת מחדל: אם משחק נוקאאוט כלשהו התחיל → טאב פלייאוף; אחרת → טאב בתים
   const knockoutStarted = useMemo(() => {
@@ -187,8 +189,9 @@ export function Bracket() {
               {/* גמר + מקומות 3-4 — מוצגים בראש אם הקבוצות ידועות (כלומר אחרי שחצי הגמר הוכרע) */}
               {(finalResolved(final) || finalResolved(thirdPlace)) && (
                 <div className="px-5 pt-3 flex flex-col gap-3">
+                  {champion?.team && <ChampionBanner team={champion.team} />}
                   {final && (
-                    <FinalCard match={final} isFinal />
+                    <FinalCard match={final} isFinal championTeam={champion?.team ?? null} />
                   )}
                   {thirdPlace && (
                     <FinalCard match={thirdPlace} isFinal={false} />
@@ -389,8 +392,8 @@ function PlaceholderMatch() {
 // FinalCard — תצוגה מיוחדת לגמר + מקומות 3-4
 // ============================================================
 function FinalCard({
-  match, isFinal,
-}: { match: Match; isFinal: boolean }) {
+  match, isFinal, championTeam = null,
+}: { match: Match; isFinal: boolean; championTeam?: string | null }) {
   const home = getTeamInfo(match.team_home);
   const away = getTeamInfo(match.team_away);
   const isFinished = match.status === "finished";
@@ -398,6 +401,8 @@ function FinalCard({
     ? formatScore(match.score_home, match.score_away, match.score_home_pen, match.score_away_pen)
     : null;
   const isPlaceholder = !match.team_home || /\d|[/]/.test(match.team_home) && match.team_home.length < 8;
+  const homeIsChamp = isFinal && !!championTeam && match.team_home === championTeam;
+  const awayIsChamp = isFinal && !!championTeam && match.team_away === championTeam;
 
   return (
     <motion.div
@@ -431,8 +436,12 @@ function FinalCard({
 
       <div className="flex items-center justify-between gap-3">
         <div className="flex flex-1 items-center gap-2">
+          {homeIsChamp && <Crown size={15} color="#FFD93D" style={{ flexShrink: 0 }} />}
           <span className="text-2xl">{isPlaceholder ? "🏳️" : home.flag}</span>
-          <span className="text-[14px] font-bold text-white truncate">
+          <span
+            className="text-[14px] font-bold truncate"
+            style={{ color: homeIsChamp ? "#FFD93D" : "#fff" }}
+          >
             {isPlaceholder ? match.team_home : home.he}
           </span>
         </div>
@@ -447,12 +456,57 @@ function FinalCard({
           )}
         </div>
         <div className="flex flex-1 items-center justify-end gap-2">
-          <span className="text-[14px] font-bold text-white truncate">
+          <span
+            className="text-[14px] font-bold truncate"
+            style={{ color: awayIsChamp ? "#FFD93D" : "#fff" }}
+          >
             {isPlaceholder ? match.team_away : away.he}
           </span>
           <span className="text-2xl">{isPlaceholder ? "🏳️" : away.flag}</span>
+          {awayIsChamp && <Crown size={15} color="#FFD93D" style={{ flexShrink: 0 }} />}
         </div>
       </div>
+      {isFinal && (homeIsChamp || awayIsChamp) && isFinished &&
+        (match.score_home === match.score_away) && (
+        <p className="mt-2 text-center text-[10px] font-bold" style={{ color: "rgba(255,217,61,0.75)" }}>
+          הוכרע בהארכה · תוצאת 90 הדקות {match.score_away}–{match.score_home}
+        </p>
+      )}
+    </motion.div>
+  );
+}
+
+// ============================================================
+// ChampionBanner — כותרת אלופת המונדיאל מעל הגמר
+// ============================================================
+function ChampionBanner({ team }: { team: string }) {
+  const t = getTeamInfo(team);
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.96 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.4 }}
+      className="flex items-center justify-center gap-3 rounded-2xl p-4 text-center"
+      style={{
+        background: "linear-gradient(135deg, rgba(255,217,61,0.20) 0%, rgba(255,170,0,0.06) 100%)",
+        border: "1.5px solid rgba(255,217,61,0.5)",
+        boxShadow: "0 12px 34px -10px rgba(255,170,0,0.34)",
+      }}
+    >
+      <Crown size={24} color="#FFD93D" />
+      <div>
+        <div
+          className="text-[10px] font-extrabold uppercase"
+          style={{ color: "#FFD93D", letterSpacing: "0.18em" }}
+        >
+          אלופת המונדיאל 2026
+        </div>
+        <div className="mt-1 flex items-center justify-center gap-2 text-[21px] font-extrabold text-white">
+          <span className="text-2xl">{t.flag}</span>
+          {t.he}
+        </div>
+      </div>
+      <Crown size={24} color="#FFD93D" />
     </motion.div>
   );
 }
